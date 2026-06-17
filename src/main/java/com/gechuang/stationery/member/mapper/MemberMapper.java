@@ -10,11 +10,13 @@ public interface MemberMapper {
 
     Member selectById(@Param("id") Long id);
 
-    Member selectByMobile(@Param("mobile") String mobile);
+    Member selectByMobile(@Param("storeId") Long storeId, @Param("mobile") String mobile);
 
     int insert(Member member);
 
     int update(Member member);
 
-    int deleteById(@Param("id") Long id);
+    int upsertWalletPoints(@Param("memberId") Long memberId, @Param("points") Integer points);
+
+    int softDeleteById(@Param("id") Long id);
 }

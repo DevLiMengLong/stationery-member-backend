@@ -1,12 +1,12 @@
 server:
-  port: 8098
+  port: 8090
 
 spring:
   application:
     name: stationery-member-backend
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:stationery_member_system}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:stationery_member}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: ${DB_USER:root}
     password: ${DB_PASSWORD:root}
   data:
@@ -19,6 +19,8 @@ spring:
     multipart:
       max-file-size: 2MB
       max-request-size: 2MB
+  profiles:
+    active: local
 
 mybatis:
   mapper-locations: classpath*:mapper/**/*.xml

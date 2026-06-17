@@ -2,7 +2,7 @@ package com.gechuang.stationery.merchant;
 
 import com.gechuang.stationery.common.PageResult;
 import com.gechuang.stationery.common.RestResponse;
-import com.gechuang.stationery.demo.DemoDataStore;
+import com.gechuang.stationery.mainflow.MainFlowService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
 import java.util.List;
@@ -21,54 +21,54 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/merchant")
 public class MerchantController {
 
-    private final DemoDataStore dataStore;
+    private final MainFlowService mainFlowService;
 
-    public MerchantController(DemoDataStore dataStore) {
-        this.dataStore = dataStore;
+    public MerchantController(MainFlowService mainFlowService) {
+        this.mainFlowService = mainFlowService;
     }
 
     @GetMapping("/dashboard")
     public RestResponse<Map<String, Object>> dashboard(HttpServletRequest request) {
-        DemoDataStore.StoreAccount store = dataStore.requireMerchant(request);
-        return RestResponse.success(dataStore.merchantDashboard(store));
+        Map<String, Object> store = mainFlowService.requireMerchant(request);
+        return RestResponse.success(mainFlowService.merchantDashboard(store));
     }
 
     @GetMapping("/profile")
     public RestResponse<Map<String, Object>> profile(HttpServletRequest request) {
-        return RestResponse.success(dataStore.currentStoreMap(dataStore.requireMerchant(request)));
+        return RestResponse.success(mainFlowService.requireMerchant(request));
     }
 
     @PutMapping("/profile")
     public RestResponse<Map<String, Object>> updateProfile(@RequestBody Map<String, Object> body,
                                                            HttpServletRequest request) {
-        DemoDataStore.StoreAccount store = dataStore.requireMerchant(request);
-        return RestResponse.success(dataStore.updateMerchantProfile(store, body));
+        Map<String, Object> store = mainFlowService.requireMerchant(request);
+        return RestResponse.success(mainFlowService.updateMerchantProfile(store, body));
     }
 
     @PutMapping("/password")
     public RestResponse<Void> updatePassword(@RequestBody Map<String, Object> body, HttpServletRequest request) {
-        dataStore.updateMerchantPassword(dataStore.requireMerchant(request), body);
+        mainFlowService.updateMerchantPassword(mainFlowService.requireMerchant(request), body);
         return RestResponse.success();
     }
 
     @GetMapping("/recharge-tiers")
     public RestResponse<List<Map<String, Object>>> rechargeTiers(HttpServletRequest request) {
-        DemoDataStore.StoreAccount store = dataStore.requireMerchant(request);
-        return RestResponse.success(dataStore.getRechargeTiers(store.getId()));
+        Map<String, Object> store = mainFlowService.requireMerchant(request);
+        return RestResponse.success(mainFlowService.getRechargeTiers(longValue(store.get("id"))));
     }
 
     @PutMapping("/recharge-tiers/{tierNo}")
     public RestResponse<Map<String, Object>> updateRechargeTier(@PathVariable int tierNo,
                                                                 @RequestBody Map<String, Object> body,
                                                                 HttpServletRequest request) {
-        DemoDataStore.StoreAccount store = dataStore.requireMerchant(request);
-        return RestResponse.success(dataStore.updateRechargeTier(store, tierNo, body));
+        Map<String, Object> store = mainFlowService.requireMerchant(request);
+        return RestResponse.success(mainFlowService.updateRechargeTier(longValue(store.get("id")), tierNo, body));
     }
 
     @GetMapping("/campaigns")
     public RestResponse<List<Map<String, Object>>> campaigns(HttpServletRequest request) {
-        DemoDataStore.StoreAccount store = dataStore.requireMerchant(request);
-        return RestResponse.success(dataStore.campaigns(store.getId()));
+        Map<String, Object> store = mainFlowService.requireMerchant(request);
+        return RestResponse.success(mainFlowService.campaigns(longValue(store.get("id"))));
     }
 
     @GetMapping("/members")
@@ -76,41 +76,41 @@ public class MerchantController {
                                                                  @RequestParam(defaultValue = "1") int pageNo,
                                                                  @RequestParam(defaultValue = "20") int pageSize,
                                                                  HttpServletRequest request) {
-        DemoDataStore.StoreAccount store = dataStore.requireMerchant(request);
-        return RestResponse.success(dataStore.merchantMembers(store, keyword, pageNo, pageSize));
+        Map<String, Object> store = mainFlowService.requireMerchant(request);
+        return RestResponse.success(mainFlowService.merchantMembers(longValue(store.get("id")), keyword, pageNo, pageSize));
     }
 
     @GetMapping("/members/lookup")
     public RestResponse<Map<String, Object>> lookupMember(@RequestParam String keyword, HttpServletRequest request) {
-        DemoDataStore.StoreAccount store = dataStore.requireMerchant(request);
-        return RestResponse.success(dataStore.lookupMember(store, keyword));
+        Map<String, Object> store = mainFlowService.requireMerchant(request);
+        return RestResponse.success(mainFlowService.lookupMember(longValue(store.get("id")), keyword));
     }
 
     @PostMapping("/members")
     public RestResponse<Map<String, Object>> createMember(@RequestBody Map<String, Object> body,
                                                           HttpServletRequest request) {
-        DemoDataStore.StoreAccount store = dataStore.requireMerchant(request);
-        return RestResponse.success(dataStore.createMember(store, body));
+        Map<String, Object> store = mainFlowService.requireMerchant(request);
+        return RestResponse.success(mainFlowService.createMember(longValue(store.get("id")), body));
     }
 
     @GetMapping("/members/{id}")
     public RestResponse<Map<String, Object>> memberDetail(@PathVariable Long id, HttpServletRequest request) {
-        DemoDataStore.StoreAccount store = dataStore.requireMerchant(request);
-        return RestResponse.success(dataStore.memberDetail(store.getId(), id, false));
+        Map<String, Object> store = mainFlowService.requireMerchant(request);
+        return RestResponse.success(mainFlowService.memberDetail(longValue(store.get("id")), id));
     }
 
     @PutMapping("/members/{id}")
     public RestResponse<Map<String, Object>> updateMember(@PathVariable Long id,
                                                           @RequestBody Map<String, Object> body,
                                                           HttpServletRequest request) {
-        DemoDataStore.StoreAccount store = dataStore.requireMerchant(request);
-        return RestResponse.success(dataStore.updateMember(store.getId(), id, body, false));
+        Map<String, Object> store = mainFlowService.requireMerchant(request);
+        return RestResponse.success(mainFlowService.updateMember(longValue(store.get("id")), id, body));
     }
 
     @DeleteMapping("/members/{id}")
     public RestResponse<Void> deleteMember(@PathVariable Long id, HttpServletRequest request) {
-        DemoDataStore.StoreAccount store = dataStore.requireMerchant(request);
-        dataStore.softDeleteMember(store.getId(), id, false);
+        Map<String, Object> store = mainFlowService.requireMerchant(request);
+        mainFlowService.softDeleteMember(longValue(store.get("id")), id);
         return RestResponse.success();
     }
 
@@ -120,47 +120,53 @@ public class MerchantController {
                                                                            @RequestParam(defaultValue = "1") int pageNo,
                                                                            @RequestParam(defaultValue = "20") int pageSize,
                                                                            HttpServletRequest request) {
-        DemoDataStore.StoreAccount store = dataStore.requireMerchant(request);
-        return RestResponse.success(dataStore.memberTransactions(store.getId(), id, type, pageNo, pageSize));
+        Map<String, Object> store = mainFlowService.requireMerchant(request);
+        return RestResponse.success(mainFlowService.memberTransactions(longValue(store.get("id")), id, type, pageNo, pageSize));
     }
 
     @PostMapping("/transactions/recharge")
     public RestResponse<Map<String, Object>> recharge(@RequestBody Map<String, Object> body,
                                                       HttpServletRequest request) {
-        DemoDataStore.StoreAccount store = dataStore.requireMerchant(request);
-        return RestResponse.success(dataStore.recharge(store, body));
+        Map<String, Object> store = mainFlowService.requireMerchant(request);
+        return RestResponse.success(mainFlowService.recharge(store, body));
     }
 
     @PostMapping("/transactions/consume")
     public RestResponse<Map<String, Object>> consume(@RequestBody Map<String, Object> body,
                                                      HttpServletRequest request) {
-        DemoDataStore.StoreAccount store = dataStore.requireMerchant(request);
-        return RestResponse.success(dataStore.consume(store, body));
+        Map<String, Object> store = mainFlowService.requireMerchant(request);
+        return RestResponse.success(mainFlowService.consume(store, body));
     }
 
     @GetMapping("/transactions/recent")
     public RestResponse<List<Map<String, Object>>> recentTransactions(@RequestParam(required = false) String type,
                                                                       @RequestParam(defaultValue = "5") int limit,
                                                                       HttpServletRequest request) {
-        DemoDataStore.StoreAccount store = dataStore.requireMerchant(request);
-        return RestResponse.success(dataStore.recentTransactions(store, type, limit));
+        Map<String, Object> store = mainFlowService.requireMerchant(request);
+        return RestResponse.success(mainFlowService.recentTransactions(longValue(store.get("id")), type, limit));
     }
 
     @PostMapping("/transactions/{id}/reverse")
     public RestResponse<Map<String, Object>> reverse(@PathVariable Long id, HttpServletRequest request) {
-        DemoDataStore.StoreAccount store = dataStore.requireMerchant(request);
-        return RestResponse.success(dataStore.reverse(store.getId(), id, false, "MERCHANT", store.getId()));
+        Map<String, Object> store = mainFlowService.requireMerchant(request);
+        Long storeId = longValue(store.get("id"));
+        return RestResponse.success(mainFlowService.reverse(storeId, id, "MERCHANT", storeId));
     }
 
     @PostMapping("/transactions/{id}/refund")
     public RestResponse<Map<String, Object>> refund(@PathVariable Long id,
                                                     @RequestBody Map<String, Object> body,
                                                     HttpServletRequest request) {
-        DemoDataStore.StoreAccount store = dataStore.requireMerchant(request);
-        return RestResponse.success(dataStore.refund(store.getId(), id, amount(body.get("amount")), "MERCHANT", store.getId()));
+        Map<String, Object> store = mainFlowService.requireMerchant(request);
+        Long storeId = longValue(store.get("id"));
+        return RestResponse.success(mainFlowService.refund(storeId, id, amount(body.get("amount")), "MERCHANT", storeId));
     }
 
     private BigDecimal amount(Object value) {
         return value == null ? BigDecimal.ZERO : new BigDecimal(String.valueOf(value));
+    }
+
+    private Long longValue(Object value) {
+        return value == null ? null : Long.valueOf(String.valueOf(value));
     }
 }

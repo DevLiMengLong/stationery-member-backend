@@ -6,7 +6,7 @@ import com.gechuang.stationery.member.entity.Member;
 import com.gechuang.stationery.member.mapper.MemberMapper;
 import com.gechuang.stationery.member.service.MemberService;
 import com.gechuang.stationery.member.vo.MemberVO;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Objects;
@@ -17,9 +17,10 @@ import org.springframework.util.StringUtils;
 @Service
 public class MemberServiceImpl implements MemberService {
 
+    private static final Long DEFAULT_STORE_ID = 1L;
     private static final int STATUS_ENABLED = 1;
-    private static final String DEFAULT_LEVEL = "NORMAL";
-    private static final DateTimeFormatter MEMBER_NO_DATE = DateTimeFormatter.ofPattern("yyyyMMdd");
+    private static final int STATUS_DISABLED = 0;
+    private static final DateTimeFormatter MEMBER_NO_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
     private final MemberMapper memberMapper;
 
@@ -37,32 +38,35 @@ public class MemberServiceImpl implements MemberService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public MemberVO createMember(MemberCreateRequest request) {
-        Member duplicate = memberMapper.selectByMobile(request.getMobile());
+        Member duplicate = memberMapper.selectByMobile(DEFAULT_STORE_ID, request.getMobile());
         if (duplicate != null) {
             throw new IllegalArgumentException("Mobile already exists");
         }
 
         Member member = new Member();
+        member.setStoreId(DEFAULT_STORE_ID);
         member.setMemberNo(generateMemberNo(request.getMobile()));
         member.setName(request.getName());
         member.setMobile(request.getMobile());
-        member.setLevel(StringUtils.hasText(request.getLevel()) ? request.getLevel() : DEFAULT_LEVEL);
-        member.setPoints(request.getPoints() == null ? 0 : request.getPoints());
         member.setStatus(STATUS_ENABLED);
         memberMapper.insert(member);
+        memberMapper.upsertWalletPoints(member.getId(), normalizePoints(request.getPoints()));
         return MemberVO.fromEntity(memberMapper.selectById(member.getId()));
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public MemberVO updateMember(MemberUpdateRequest request) {
+        if (request.getId() == null) {
+            throw new IllegalArgumentException("Member id is required");
+        }
         Member existing = memberMapper.selectById(request.getId());
         if (existing == null) {
             throw new IllegalArgumentException("Member does not exist");
         }
 
         if (StringUtils.hasText(request.getMobile())) {
-            Member duplicate = memberMapper.selectByMobile(request.getMobile());
+            Member duplicate = memberMapper.selectByMobile(DEFAULT_STORE_ID, request.getMobile());
             if (duplicate != null && !Objects.equals(duplicate.getId(), request.getId())) {
                 throw new IllegalArgumentException("Mobile already exists");
             }
@@ -72,10 +76,13 @@ public class MemberServiceImpl implements MemberService {
         member.setId(request.getId());
         member.setName(request.getName());
         member.setMobile(request.getMobile());
-        member.setLevel(request.getLevel());
-        member.setPoints(request.getPoints());
-        member.setStatus(request.getStatus());
-        memberMapper.update(member);
+        member.setStatus(normalizeStatus(request.getStatus()));
+        if (hasMemberProfileUpdate(request)) {
+            memberMapper.update(member);
+        }
+        if (request.getPoints() != null) {
+            memberMapper.upsertWalletPoints(request.getId(), normalizePoints(request.getPoints()));
+        }
         return MemberVO.fromEntity(memberMapper.selectById(request.getId()));
     }
 
@@ -86,11 +93,37 @@ public class MemberServiceImpl implements MemberService {
         if (existing == null) {
             throw new IllegalArgumentException("Member does not exist");
         }
-        memberMapper.deleteById(id);
+        memberMapper.softDeleteById(id);
     }
 
     private String generateMemberNo(String mobile) {
         String suffix = mobile.substring(Math.max(0, mobile.length() - 4));
-        return "M" + LocalDate.now().format(MEMBER_NO_DATE) + suffix;
+        return "M" + LocalDateTime.now().format(MEMBER_NO_TIME) + suffix;
+    }
+
+    private boolean hasMemberProfileUpdate(MemberUpdateRequest request) {
+        return request.getName() != null
+                || request.getMobile() != null
+                || request.getStatus() != null;
+    }
+
+    private int normalizePoints(Integer points) {
+        if (points == null) {
+            return 0;
+        }
+        if (points < 0) {
+            throw new IllegalArgumentException("Points must not be negative");
+        }
+        return points;
+    }
+
+    private Integer normalizeStatus(Integer status) {
+        if (status == null) {
+            return null;
+        }
+        if (status == STATUS_ENABLED || status == STATUS_DISABLED) {
+            return status;
+        }
+        throw new IllegalArgumentException("Status must be 0 or 1");
     }
 }

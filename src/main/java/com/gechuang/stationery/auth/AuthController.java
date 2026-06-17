@@ -3,7 +3,7 @@ package com.gechuang.stationery.auth;
 import com.gechuang.stationery.common.BusinessException;
 import com.gechuang.stationery.common.ErrorCode;
 import com.gechuang.stationery.common.RestResponse;
-import com.gechuang.stationery.demo.DemoDataStore;
+import com.gechuang.stationery.mainflow.MainFlowService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -20,50 +20,49 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    private static final int TOKEN_MAX_AGE_SECONDS = 12 * 60 * 60;
-    private final DemoDataStore dataStore;
+    private final MainFlowService mainFlowService;
 
-    public AuthController(DemoDataStore dataStore) {
-        this.dataStore = dataStore;
+    public AuthController(MainFlowService mainFlowService) {
+        this.mainFlowService = mainFlowService;
     }
 
     @PostMapping("/merchant/login")
     public RestResponse<Map<String, Object>> merchantLogin(@RequestBody Map<String, Object> body,
                                                            HttpServletResponse response) {
-        DemoDataStore.AuthResult result = dataStore.loginMerchant(text(body.get("account")), text(body.get("password")));
-        response.addCookie(tokenCookie(DemoDataStore.MERCHANT_TOKEN, result.token(), TOKEN_MAX_AGE_SECONDS));
+        MainFlowService.AuthResult result = mainFlowService.loginMerchant(text(body.get("account")), text(body.get("password")));
+        response.addCookie(tokenCookie(MainFlowService.MERCHANT_TOKEN, result.token(), MainFlowService.TOKEN_MAX_AGE_SECONDS));
         return RestResponse.success(authPayload(result));
     }
 
     @GetMapping("/merchant/me")
     public RestResponse<Map<String, Object>> merchantMe(HttpServletRequest request) {
-        return RestResponse.success(dataStore.currentStoreMap(dataStore.requireMerchant(request)));
+        return RestResponse.success(mainFlowService.requireMerchant(request));
     }
 
     @PostMapping("/merchant/logout")
     public RestResponse<Void> merchantLogout(HttpServletRequest request, HttpServletResponse response) {
-        dataStore.logout(dataStore.tokenFromCookie(request, DemoDataStore.MERCHANT_TOKEN));
-        response.addCookie(tokenCookie(DemoDataStore.MERCHANT_TOKEN, "", 0));
+        mainFlowService.logout(request, MainFlowService.MERCHANT_TOKEN);
+        response.addCookie(tokenCookie(MainFlowService.MERCHANT_TOKEN, "", 0));
         return RestResponse.success();
     }
 
     @PostMapping("/admin/login")
     public RestResponse<Map<String, Object>> adminLogin(@RequestBody Map<String, Object> body,
                                                         HttpServletResponse response) {
-        DemoDataStore.AuthResult result = dataStore.loginAdmin(text(body.get("username")), text(body.get("password")));
-        response.addCookie(tokenCookie(DemoDataStore.ADMIN_TOKEN, result.token(), TOKEN_MAX_AGE_SECONDS));
+        MainFlowService.AuthResult result = mainFlowService.loginAdmin(text(body.get("username")), text(body.get("password")));
+        response.addCookie(tokenCookie(MainFlowService.ADMIN_TOKEN, result.token(), MainFlowService.TOKEN_MAX_AGE_SECONDS));
         return RestResponse.success(authPayload(result));
     }
 
     @GetMapping("/admin/me")
     public RestResponse<Map<String, Object>> adminMe(HttpServletRequest request) {
-        return RestResponse.success(dataStore.currentAdminMap(dataStore.requireAdmin(request)));
+        return RestResponse.success(mainFlowService.requireAdmin(request));
     }
 
     @PostMapping("/admin/logout")
     public RestResponse<Void> adminLogout(HttpServletRequest request, HttpServletResponse response) {
-        dataStore.logout(dataStore.tokenFromCookie(request, DemoDataStore.ADMIN_TOKEN));
-        response.addCookie(tokenCookie(DemoDataStore.ADMIN_TOKEN, "", 0));
+        mainFlowService.logout(request, MainFlowService.ADMIN_TOKEN);
+        response.addCookie(tokenCookie(MainFlowService.ADMIN_TOKEN, "", 0));
         return RestResponse.success();
     }
 
@@ -84,11 +83,11 @@ public class AuthController {
         return RestResponse.success();
     }
 
-    private Map<String, Object> authPayload(DemoDataStore.AuthResult result) {
+    private Map<String, Object> authPayload(MainFlowService.AuthResult result) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("token", result.token());
-        payload.put("user", result.data());
-        payload.put("expiresIn", TOKEN_MAX_AGE_SECONDS);
+        payload.put("user", result.user());
+        payload.put("expiresIn", MainFlowService.TOKEN_MAX_AGE_SECONDS);
         return payload;
     }
 

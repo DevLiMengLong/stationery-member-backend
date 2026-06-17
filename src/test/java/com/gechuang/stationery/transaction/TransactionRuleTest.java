@@ -26,14 +26,25 @@ class TransactionRuleTest {
     }
 
     @Test
-    void consumptionShouldDeductGiftBalanceBeforeRechargeBalance() {
+    void consumptionShouldDeductRechargeBalanceBeforeGiftBalance() {
         WalletSnapshot before = new WalletSnapshot(new BigDecimal("100.00"), new BigDecimal("10.00"));
 
         WalletSnapshot after = WalletCalculator.consume(before, new BigDecimal("30.00"));
 
-        assertThat(after.rechargeBalance()).isEqualByComparingTo("80.00");
-        assertThat(after.giftBalance()).isEqualByComparingTo("0.00");
+        assertThat(after.rechargeBalance()).isEqualByComparingTo("70.00");
+        assertThat(after.giftBalance()).isEqualByComparingTo("10.00");
         assertThat(after.totalBalance()).isEqualByComparingTo("80.00");
+    }
+
+    @Test
+    void deductionShouldDeductRechargeBalanceBeforeGiftBalance() {
+        WalletSnapshot before = new WalletSnapshot(new BigDecimal("20.00"), new BigDecimal("30.00"));
+
+        WalletSnapshot after = WalletCalculator.deduct(before, new BigDecimal("25.00"));
+
+        assertThat(after.rechargeBalance()).isEqualByComparingTo("0.00");
+        assertThat(after.giftBalance()).isEqualByComparingTo("25.00");
+        assertThat(after.totalBalance()).isEqualByComparingTo("25.00");
     }
 
     @Test

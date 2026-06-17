@@ -4,7 +4,7 @@ import com.gechuang.stationery.common.BusinessException;
 import com.gechuang.stationery.common.ErrorCode;
 import com.gechuang.stationery.common.PageResult;
 import com.gechuang.stationery.common.RestResponse;
-import com.gechuang.stationery.demo.DemoDataStore;
+import com.gechuang.stationery.mainflow.MainFlowService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -29,16 +29,16 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/admin")
 public class AdminController {
 
-    private final DemoDataStore dataStore;
+    private final MainFlowService mainFlowService;
 
-    public AdminController(DemoDataStore dataStore) {
-        this.dataStore = dataStore;
+    public AdminController(MainFlowService mainFlowService) {
+        this.mainFlowService = mainFlowService;
     }
 
     @GetMapping("/overview")
     public RestResponse<Map<String, Object>> overview(HttpServletRequest request) {
-        dataStore.requireAdmin(request);
-        return RestResponse.success(dataStore.adminOverview());
+        mainFlowService.requireAdmin(request);
+        return RestResponse.success(mainFlowService.adminOverview());
     }
 
     @GetMapping("/stores")
@@ -47,39 +47,39 @@ public class AdminController {
                                                                 @RequestParam(defaultValue = "1") int pageNo,
                                                                 @RequestParam(defaultValue = "20") int pageSize,
                                                                 HttpServletRequest request) {
-        dataStore.requireAdmin(request);
-        return RestResponse.success(dataStore.adminStores(keyword, status, pageNo, pageSize));
+        mainFlowService.requireAdmin(request);
+        return RestResponse.success(mainFlowService.stores(keyword, status, pageNo, pageSize));
     }
 
     @PostMapping("/stores")
     public RestResponse<Map<String, Object>> createStore(@RequestBody Map<String, Object> body,
                                                          HttpServletRequest request) {
-        dataStore.requireAdmin(request);
-        return RestResponse.success(dataStore.createStore(body));
+        mainFlowService.requireAdmin(request);
+        return RestResponse.success(mainFlowService.createStore(body));
     }
 
     @PutMapping("/stores/{id}")
     public RestResponse<Map<String, Object>> updateStore(@PathVariable Long id,
                                                          @RequestBody Map<String, Object> body,
                                                          HttpServletRequest request) {
-        dataStore.requireAdmin(request);
-        return RestResponse.success(dataStore.updateStore(id, body));
+        mainFlowService.requireAdmin(request);
+        return RestResponse.success(mainFlowService.updateStore(id, body));
     }
 
     @PatchMapping("/stores/{id}/status")
     public RestResponse<Map<String, Object>> updateStoreStatus(@PathVariable Long id,
                                                                @RequestBody Map<String, Object> body,
                                                                HttpServletRequest request) {
-        dataStore.requireAdmin(request);
-        return RestResponse.success(dataStore.updateStoreStatus(id, text(body.get("status"))));
+        mainFlowService.requireAdmin(request);
+        return RestResponse.success(mainFlowService.updateStoreStatus(id, text(body.get("status"))));
     }
 
     @PostMapping("/stores/{id}/reset-password")
     public RestResponse<Void> resetStorePassword(@PathVariable Long id,
                                                  @RequestBody Map<String, Object> body,
                                                  HttpServletRequest request) {
-        dataStore.requireAdmin(request);
-        dataStore.resetStorePassword(id, textOrDefault(body.get("newPassword"), "123456"));
+        mainFlowService.requireAdmin(request);
+        mainFlowService.resetStorePassword(id, textOrDefault(body.get("newPassword"), "123456"));
         return RestResponse.success();
     }
 
@@ -94,8 +94,8 @@ public class AdminController {
                                                                  @RequestParam(defaultValue = "1") int pageNo,
                                                                  @RequestParam(defaultValue = "20") int pageSize,
                                                                  HttpServletRequest request) {
-        dataStore.requireAdmin(request);
-        return RestResponse.success(dataStore.adminMembers(mobile, name, storeId, rechargeMin, rechargeMax,
+        mainFlowService.requireAdmin(request);
+        return RestResponse.success(mainFlowService.adminMembers(mobile, name, storeId, rechargeMin, rechargeMax,
                 consumptionMin, consumptionMax, pageNo, pageSize));
     }
 
@@ -103,9 +103,14 @@ public class AdminController {
     public ResponseEntity<byte[]> exportMembers(@RequestParam(required = false) String mobile,
                                                 @RequestParam(required = false) String name,
                                                 @RequestParam(required = false) Long storeId,
+                                                @RequestParam(required = false) BigDecimal rechargeMin,
+                                                @RequestParam(required = false) BigDecimal rechargeMax,
+                                                @RequestParam(required = false) BigDecimal consumptionMin,
+                                                @RequestParam(required = false) BigDecimal consumptionMax,
                                                 HttpServletRequest request) {
-        dataStore.requireAdmin(request);
-        List<Map<String, Object>> rows = dataStore.adminMembersForExport(mobile, name, storeId);
+        mainFlowService.requireAdmin(request);
+        List<Map<String, Object>> rows = mainFlowService.adminMembersForExport(mobile, name, storeId,
+                rechargeMin, rechargeMax, consumptionMin, consumptionMax);
         if (rows.size() > 5000) {
             throw new BusinessException(ErrorCode.BIZ_409, "导出数据超过 5000 条，请缩小筛选范围");
         }
@@ -119,22 +124,22 @@ public class AdminController {
 
     @GetMapping("/members/{id}")
     public RestResponse<Map<String, Object>> memberDetail(@PathVariable Long id, HttpServletRequest request) {
-        dataStore.requireAdmin(request);
-        return RestResponse.success(dataStore.memberDetail(null, id, true));
+        mainFlowService.requireAdmin(request);
+        return RestResponse.success(mainFlowService.memberDetail(null, id));
     }
 
     @PutMapping("/members/{id}")
     public RestResponse<Map<String, Object>> updateMember(@PathVariable Long id,
                                                           @RequestBody Map<String, Object> body,
                                                           HttpServletRequest request) {
-        dataStore.requireAdmin(request);
-        return RestResponse.success(dataStore.updateMember(null, id, body, true));
+        mainFlowService.requireAdmin(request);
+        return RestResponse.success(mainFlowService.updateMember(null, id, body));
     }
 
     @DeleteMapping("/members/{id}")
     public RestResponse<Void> deleteMember(@PathVariable Long id, HttpServletRequest request) {
-        dataStore.requireAdmin(request);
-        dataStore.softDeleteMember(null, id, true);
+        mainFlowService.requireAdmin(request);
+        mainFlowService.softDeleteMember(null, id);
         return RestResponse.success();
     }
 
@@ -144,43 +149,43 @@ public class AdminController {
                                                                            @RequestParam(defaultValue = "1") int pageNo,
                                                                            @RequestParam(defaultValue = "20") int pageSize,
                                                                            HttpServletRequest request) {
-        dataStore.requireAdmin(request);
-        return RestResponse.success(dataStore.memberTransactions(null, id, type, pageNo, pageSize));
+        mainFlowService.requireAdmin(request);
+        return RestResponse.success(mainFlowService.memberTransactions(null, id, type, pageNo, pageSize));
     }
 
     @PostMapping("/transactions/{id}/reverse")
     public RestResponse<Map<String, Object>> reverse(@PathVariable Long id,
                                                      @RequestBody(required = false) Map<String, Object> body,
                                                      HttpServletRequest request) {
-        DemoDataStore.AdminUser admin = dataStore.requireAdmin(request);
+        Map<String, Object> admin = mainFlowService.requireAdmin(request);
         requireReason(body);
-        return RestResponse.success(dataStore.reverse(null, id, true, "ADMIN", admin.getId()));
+        return RestResponse.success(mainFlowService.reverse(null, id, "ADMIN", longValue(admin.get("id"))));
     }
 
     @PostMapping("/transactions/{id}/refund")
     public RestResponse<Map<String, Object>> refund(@PathVariable Long id,
                                                     @RequestBody Map<String, Object> body,
                                                     HttpServletRequest request) {
-        DemoDataStore.AdminUser admin = dataStore.requireAdmin(request);
+        Map<String, Object> admin = mainFlowService.requireAdmin(request);
         requireReason(body);
-        return RestResponse.success(dataStore.refund(longValue(body.get("storeId")), id, amount(body.get("amount")),
-                "ADMIN", admin.getId()));
+        return RestResponse.success(mainFlowService.refund(longValue(body.get("storeId")), id, amount(body.get("amount")),
+                "ADMIN", longValue(admin.get("id"))));
     }
 
     @PostMapping("/members/{id}/corrections")
     public RestResponse<Map<String, Object>> correction(@PathVariable Long id,
                                                         @RequestBody Map<String, Object> body,
                                                         HttpServletRequest request) {
-        DemoDataStore.AdminUser admin = dataStore.requireAdmin(request);
+        Map<String, Object> admin = mainFlowService.requireAdmin(request);
         requireReason(body);
-        return RestResponse.success(dataStore.correction(id, text(body.get("correctionType")),
-                amount(body.get("amount")), text(body.get("reason")), admin.getId()));
+        return RestResponse.success(mainFlowService.correction(id, text(body.get("correctionType")),
+                amount(body.get("amount")), text(body.get("reason")), longValue(admin.get("id"))));
     }
 
     @GetMapping("/activity")
     public RestResponse<List<Map<String, Object>>> activity(HttpServletRequest request) {
-        dataStore.requireAdmin(request);
-        return RestResponse.success(dataStore.activityRows());
+        mainFlowService.requireAdmin(request);
+        return RestResponse.success(mainFlowService.activityRows());
     }
 
     private void requireReason(Map<String, Object> body) {

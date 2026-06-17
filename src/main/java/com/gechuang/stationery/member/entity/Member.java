@@ -7,6 +7,7 @@ import lombok.Data;
 public class Member {
 
     private Long id;
+    private Long storeId;
     private String memberNo;
     private String name;
     private String mobile;

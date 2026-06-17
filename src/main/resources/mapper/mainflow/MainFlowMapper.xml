@@ -1,0 +1,594 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gechuang.stationery.mainflow.MainFlowMapper">
+
+    <sql id="Money">
+        CAST(CAST(COALESCE(${expr}, 0.00) AS DECIMAL(12,2)) AS CHAR)
+    </sql>
+
+    <sql id="StoreColumns">
+        id,
+        account,
+        password_hash AS passwordHash,
+        shop_name AS shopName,
+        contact_mobile AS contactMobile,
+        avatar_url AS avatarUrl,
+        address,
+        status,
+        DATE_FORMAT(last_login_at, '%Y-%m-%d %H:%i:%s') AS lastLoginAt,
+        DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS createdAt
+    </sql>
+
+    <sql id="AdminColumns">
+        id,
+        username,
+        password_hash AS passwordHash,
+        display_name AS displayName,
+        role,
+        CASE WHEN role = 'SUPER_ADMIN' THEN '系统管理员' ELSE role END AS roleLabel,
+        avatar_url AS avatarUrl,
+        status
+    </sql>
+
+    <sql id="MemberSelect">
+        m.id,
+        m.store_id AS storeId,
+        s.shop_name AS storeName,
+        m.member_no AS memberNo,
+        m.name,
+        m.mobile,
+        m.gender,
+        m.age,
+        m.avatar_url AS avatarUrl,
+        m.status,
+        <include refid="Money"><property name="expr" value="w.recharge_balance + w.gift_balance"/></include> AS availableBalance,
+        <include refid="Money"><property name="expr" value="w.recharge_balance + w.gift_balance"/></include> AS totalBalance,
+        <include refid="Money"><property name="expr" value="w.recharge_balance"/></include> AS rechargeBalance,
+        <include refid="Money"><property name="expr" value="w.gift_balance"/></include> AS giftBalance,
+        <include refid="Money"><property name="expr" value="w.accumulated_recharge"/></include> AS accumulatedRecharge,
+        <include refid="Money"><property name="expr" value="w.accumulated_gift"/></include> AS accumulatedGift,
+        <include refid="Money"><property name="expr" value="w.accumulated_consumption"/></include> AS accumulatedConsumption,
+        w.recharge_count AS rechargeCount,
+        w.consumption_count AS consumptionCount,
+        DATE_FORMAT(m.joined_at, '%Y-%m-%d %H:%i:%s') AS joinedAt
+    </sql>
+
+    <sql id="MemberFrom">
+        FROM store_member m
+        JOIN store_account s ON s.id = m.store_id
+        LEFT JOIN member_wallet w ON w.member_id = m.id
+    </sql>
+
+    <sql id="VisibleMemberWhere">
+        m.deleted_at IS NULL
+        AND m.status != 'DELETED'
+    </sql>
+
+    <sql id="TransactionSelect">
+        tx.id,
+        tx.serial_no AS serialNo,
+        tx.store_id AS storeId,
+        s.shop_name AS storeName,
+        tx.member_id AS memberId,
+        m.name AS memberName,
+        m.mobile,
+        tx.original_transaction_id AS originalTransactionId,
+        tx.type,
+        tx.status,
+        <include refid="Money"><property name="expr" value="tx.amount"/></include> AS amount,
+        <include refid="Money"><property name="expr" value="tx.gift_amount"/></include> AS giftAmount,
+        <include refid="Money"><property name="expr" value="tx.before_total_balance"/></include> AS beforeTotalBalance,
+        <include refid="Money"><property name="expr" value="tx.after_total_balance"/></include> AS afterTotalBalance,
+        tx.payment_method AS paymentMethod,
+        tx.serial_no AS orderNo,
+        tx.item_name AS itemName,
+        tx.remark,
+        DATE_FORMAT(tx.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt
+    </sql>
+
+    <select id="selectStoreByAccount" resultType="map">
+        SELECT <include refid="StoreColumns"/>
+        FROM store_account
+        WHERE account = #{account}
+        LIMIT 1
+    </select>
+
+    <select id="selectStoreById" resultType="map">
+        SELECT <include refid="StoreColumns"/>
+        FROM store_account
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectAdminByUsername" resultType="map">
+        SELECT <include refid="AdminColumns"/>
+        FROM admin_user
+        WHERE username = #{username}
+        LIMIT 1
+    </select>
+
+    <select id="selectAdminById" resultType="map">
+        SELECT <include refid="AdminColumns"/>
+        FROM admin_user
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectStoreByToken" resultType="map">
+        SELECT sa.id,
+               sa.account,
+               sa.password_hash AS passwordHash,
+               sa.shop_name AS shopName,
+               sa.contact_mobile AS contactMobile,
+               sa.avatar_url AS avatarUrl,
+               sa.address,
+               sa.status,
+               DATE_FORMAT(sa.last_login_at, '%Y-%m-%d %H:%i:%s') AS lastLoginAt,
+               DATE_FORMAT(sa.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt
+        FROM login_session ls
+        JOIN store_account sa ON sa.id = ls.principal_id
+        WHERE ls.token = #{token}
+          AND ls.principal_type = 'MERCHANT'
+          AND ls.expires_at > #{now}
+    </select>
+
+    <select id="selectAdminByToken" resultType="map">
+        SELECT au.id,
+               au.username,
+               au.password_hash AS passwordHash,
+               au.display_name AS displayName,
+               au.role,
+               CASE WHEN au.role = 'SUPER_ADMIN' THEN '系统管理员' ELSE au.role END AS roleLabel,
+               au.avatar_url AS avatarUrl,
+               au.status
+        FROM login_session ls
+        JOIN admin_user au ON au.id = ls.principal_id
+        WHERE ls.token = #{token}
+          AND ls.principal_type = 'ADMIN'
+          AND ls.expires_at > #{now}
+    </select>
+
+    <insert id="insertSession">
+        INSERT INTO login_session (token, principal_type, principal_id, expires_at)
+        VALUES (#{token}, #{principalType}, #{principalId}, #{expiresAt})
+    </insert>
+
+    <delete id="deleteSession">
+        DELETE FROM login_session
+        WHERE token = #{token}
+    </delete>
+
+    <update id="updateStoreLastLogin">
+        UPDATE store_account
+        SET last_login_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateAdminLastLogin">
+        UPDATE admin_user
+        SET last_login_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectAdminOverview" resultType="map">
+        SELECT
+            (SELECT COUNT(*) FROM store_account) AS storeCount,
+            (SELECT COUNT(*) FROM store_account WHERE status = 'ACTIVE') AS activeStoreCount,
+            <include refid="Money"><property name="expr" value="(SELECT SUM(amount) FROM wallet_transaction WHERE type = 'RECHARGE' AND status = 'SUCCESS')"/></include> AS totalRechargeAmount,
+            <include refid="Money"><property name="expr" value="(SELECT SUM(w.recharge_balance + w.gift_balance) FROM store_member m JOIN member_wallet w ON w.member_id = m.id WHERE m.deleted_at IS NULL AND m.status != 'DELETED')"/></include> AS pendingConsumptionAmount
+    </select>
+
+    <select id="selectOverviewStores" resultType="map">
+        SELECT
+            sa.id,
+            sa.account,
+            sa.shop_name AS shopName,
+            sa.contact_mobile AS contactMobile,
+            sa.avatar_url AS avatarUrl,
+            sa.address,
+            sa.status,
+            DATE_FORMAT(sa.last_login_at, '%Y-%m-%d %H:%i:%s') AS lastLoginAt,
+            DATE_FORMAT(sa.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt,
+            <include refid="Money"><property name="expr" value="(SELECT SUM(amount) FROM wallet_transaction tx WHERE tx.store_id = sa.id AND tx.type = 'RECHARGE' AND tx.status = 'SUCCESS')"/></include> AS totalRechargeAmount,
+            <include refid="Money"><property name="expr" value="(SELECT SUM(w.recharge_balance + w.gift_balance) FROM store_member m JOIN member_wallet w ON w.member_id = m.id WHERE m.store_id = sa.id AND m.deleted_at IS NULL AND m.status != 'DELETED')"/></include> AS pendingConsumptionAmount
+        FROM store_account sa
+        ORDER BY sa.id
+    </select>
+
+    <select id="selectMerchantDashboard" resultType="map">
+        SELECT
+            sa.id,
+            sa.account,
+            sa.shop_name AS shopName,
+            sa.contact_mobile AS contactMobile,
+            sa.avatar_url AS avatarUrl,
+            sa.address,
+            sa.status,
+            DATE_FORMAT(sa.last_login_at, '%Y-%m-%d %H:%i:%s') AS lastLoginAt,
+            DATE_FORMAT(sa.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt,
+            DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s') AS updatedAt,
+            (SELECT COUNT(*) FROM store_member m WHERE m.store_id = sa.id AND m.deleted_at IS NULL AND m.status != 'DELETED') AS memberCount,
+            <include refid="Money"><property name="expr" value="(SELECT SUM(amount) FROM wallet_transaction WHERE store_id = sa.id AND type = 'RECHARGE' AND status = 'SUCCESS')"/></include> AS totalRechargeAmount,
+            <include refid="Money"><property name="expr" value="(SELECT SUM(w.recharge_balance + w.gift_balance) FROM store_member m JOIN member_wallet w ON w.member_id = m.id WHERE m.store_id = sa.id AND m.deleted_at IS NULL AND m.status != 'DELETED')"/></include> AS pendingConsumptionAmount,
+            <include refid="Money"><property name="expr" value="(SELECT SUM(gift_amount) FROM wallet_transaction WHERE store_id = sa.id AND type = 'RECHARGE' AND status = 'SUCCESS')"/></include> AS totalGiftAmount,
+            (SELECT COUNT(*) FROM store_member m WHERE m.store_id = sa.id AND m.created_at &gt;= #{todayStart} AND m.created_at &lt; #{tomorrowStart}) AS todayNewMembers,
+            <include refid="Money"><property name="expr" value="(SELECT SUM(amount) FROM wallet_transaction WHERE store_id = sa.id AND type = 'CONSUMPTION' AND status = 'SUCCESS' AND created_at &gt;= #{todayStart} AND created_at &lt; #{tomorrowStart})"/></include> AS todayConsumptionAmount,
+            <include refid="Money"><property name="expr" value="(SELECT SUM(amount) FROM wallet_transaction WHERE store_id = sa.id AND type = 'RECHARGE' AND status = 'SUCCESS' AND created_at &gt;= #{todayStart} AND created_at &lt; #{tomorrowStart})"/></include> AS todayRechargeAmount,
+            (SELECT COUNT(*) FROM store_member m WHERE m.store_id = sa.id AND m.created_at &gt;= #{weekStart} AND m.created_at &lt; #{tomorrowStart}) AS weekNewMembers,
+            <include refid="Money"><property name="expr" value="(SELECT SUM(amount) FROM wallet_transaction WHERE store_id = sa.id AND type = 'CONSUMPTION' AND status = 'SUCCESS' AND created_at &gt;= #{weekStart} AND created_at &lt; #{tomorrowStart})"/></include> AS weekConsumptionAmount,
+            <include refid="Money"><property name="expr" value="(SELECT SUM(amount) FROM wallet_transaction WHERE store_id = sa.id AND type = 'RECHARGE' AND status = 'SUCCESS' AND created_at &gt;= #{weekStart} AND created_at &lt; #{tomorrowStart})"/></include> AS weekRechargeAmount
+        FROM store_account sa
+        WHERE sa.id = #{storeId}
+    </select>
+
+    <select id="selectRechargeTiers" resultType="map">
+        SELECT tier_no AS tierNo,
+               <include refid="Money"><property name="expr" value="recharge_amount"/></include> AS rechargeAmount,
+               <include refid="Money"><property name="expr" value="gift_amount"/></include> AS giftAmount,
+               DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updatedAt
+        FROM recharge_tier
+        WHERE store_id = #{storeId}
+        ORDER BY tier_no
+    </select>
+
+    <select id="selectRechargeTier" resultType="map">
+        SELECT tier_no AS tierNo,
+               recharge_amount AS rechargeAmount,
+               gift_amount AS giftAmount
+        FROM recharge_tier
+        WHERE store_id = #{storeId}
+          AND tier_no = #{tierNo}
+    </select>
+
+    <update id="updateRechargeTier">
+        UPDATE recharge_tier
+        SET recharge_amount = #{rechargeAmount},
+            gift_amount = #{giftAmount}
+        WHERE store_id = #{storeId}
+          AND tier_no = #{tierNo}
+    </update>
+
+    <select id="countStores" resultType="int">
+        SELECT COUNT(*)
+        FROM store_account
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (shop_name LIKE CONCAT('%', #{keyword}, '%')
+                     OR account LIKE CONCAT('%', #{keyword}, '%')
+                     OR contact_mobile LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectStores" resultType="map">
+        SELECT <include refid="StoreColumns"/>
+        FROM store_account
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (shop_name LIKE CONCAT('%', #{keyword}, '%')
+                     OR account LIKE CONCAT('%', #{keyword}, '%')
+                     OR contact_mobile LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+        </where>
+        ORDER BY id
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <insert id="insertStore" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO store_account (account, password_hash, shop_name, contact_mobile, avatar_url, address, status)
+        VALUES (#{account}, #{passwordHash}, #{shopName}, #{contactMobile}, #{avatarUrl}, #{address}, #{status})
+    </insert>
+
+    <update id="updateStore" parameterType="map">
+        UPDATE store_account
+        SET shop_name = #{shopName},
+            contact_mobile = #{contactMobile},
+            avatar_url = #{avatarUrl},
+            address = #{address},
+            status = #{status}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStoreStatus">
+        UPDATE store_account
+        SET status = #{status}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStorePassword">
+        UPDATE store_account
+        SET password_hash = #{passwordHash}
+        WHERE id = #{id}
+    </update>
+
+    <insert id="insertDefaultRechargeTiers">
+        INSERT INTO recharge_tier (store_id, tier_no, recharge_amount, gift_amount)
+        VALUES
+          (#{storeId}, 1, 100.00, 10.00),
+          (#{storeId}, 2, 200.00, 20.00),
+          (#{storeId}, 3, 300.00, 35.00),
+          (#{storeId}, 4, 500.00, 100.00)
+    </insert>
+
+    <select id="countMerchantMembers" resultType="int">
+        SELECT COUNT(*)
+        <include refid="MemberFrom"/>
+        WHERE <include refid="VisibleMemberWhere"/>
+          AND m.store_id = #{storeId}
+          <if test="keyword != null and keyword != ''">
+              AND (m.name LIKE CONCAT('%', #{keyword}, '%')
+                   OR m.mobile LIKE CONCAT('%', #{keyword}, '%')
+                   OR m.member_no LIKE CONCAT('%', #{keyword}, '%'))
+          </if>
+    </select>
+
+    <select id="selectMerchantMembers" resultType="map">
+        SELECT <include refid="MemberSelect"/>
+        <include refid="MemberFrom"/>
+        WHERE <include refid="VisibleMemberWhere"/>
+          AND m.store_id = #{storeId}
+          <if test="keyword != null and keyword != ''">
+              AND (m.name LIKE CONCAT('%', #{keyword}, '%')
+                   OR m.mobile LIKE CONCAT('%', #{keyword}, '%')
+                   OR m.member_no LIKE CONCAT('%', #{keyword}, '%'))
+          </if>
+        ORDER BY m.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countAdminMembers" resultType="int">
+        SELECT COUNT(*)
+        <include refid="MemberFrom"/>
+        WHERE <include refid="VisibleMemberWhere"/>
+          <if test="storeId != null">AND m.store_id = #{storeId}</if>
+          <if test="mobile != null and mobile != ''">AND m.mobile LIKE CONCAT('%', #{mobile}, '%')</if>
+          <if test="name != null and name != ''">AND m.name LIKE CONCAT('%', #{name}, '%')</if>
+          <if test="rechargeMin != null">AND w.accumulated_recharge &gt;= #{rechargeMin}</if>
+          <if test="rechargeMax != null">AND w.accumulated_recharge &lt;= #{rechargeMax}</if>
+          <if test="consumptionMin != null">AND w.accumulated_consumption &gt;= #{consumptionMin}</if>
+          <if test="consumptionMax != null">AND w.accumulated_consumption &lt;= #{consumptionMax}</if>
+    </select>
+
+    <select id="selectAdminMembers" resultType="map">
+        SELECT <include refid="MemberSelect"/>
+        <include refid="MemberFrom"/>
+        WHERE <include refid="VisibleMemberWhere"/>
+          <if test="storeId != null">AND m.store_id = #{storeId}</if>
+          <if test="mobile != null and mobile != ''">AND m.mobile LIKE CONCAT('%', #{mobile}, '%')</if>
+          <if test="name != null and name != ''">AND m.name LIKE CONCAT('%', #{name}, '%')</if>
+          <if test="rechargeMin != null">AND w.accumulated_recharge &gt;= #{rechargeMin}</if>
+          <if test="rechargeMax != null">AND w.accumulated_recharge &lt;= #{rechargeMax}</if>
+          <if test="consumptionMin != null">AND w.accumulated_consumption &gt;= #{consumptionMin}</if>
+          <if test="consumptionMax != null">AND w.accumulated_consumption &lt;= #{consumptionMax}</if>
+        ORDER BY m.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="selectAdminMembersForExport" resultType="map">
+        SELECT <include refid="MemberSelect"/>
+        <include refid="MemberFrom"/>
+        WHERE <include refid="VisibleMemberWhere"/>
+          <if test="storeId != null">AND m.store_id = #{storeId}</if>
+          <if test="mobile != null and mobile != ''">AND m.mobile LIKE CONCAT('%', #{mobile}, '%')</if>
+          <if test="name != null and name != ''">AND m.name LIKE CONCAT('%', #{name}, '%')</if>
+          <if test="rechargeMin != null">AND w.accumulated_recharge &gt;= #{rechargeMin}</if>
+          <if test="rechargeMax != null">AND w.accumulated_recharge &lt;= #{rechargeMax}</if>
+          <if test="consumptionMin != null">AND w.accumulated_consumption &gt;= #{consumptionMin}</if>
+          <if test="consumptionMax != null">AND w.accumulated_consumption &lt;= #{consumptionMax}</if>
+        ORDER BY m.id DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectMemberDetail" resultType="map">
+        SELECT <include refid="MemberSelect"/>
+        <include refid="MemberFrom"/>
+        WHERE <include refid="VisibleMemberWhere"/>
+          AND m.id = #{id}
+          <if test="storeId != null">AND m.store_id = #{storeId}</if>
+    </select>
+
+    <select id="selectMemberDetailForUpdate" resultType="map">
+        SELECT <include refid="MemberSelect"/>
+        <include refid="MemberFrom"/>
+        WHERE <include refid="VisibleMemberWhere"/>
+          AND m.id = #{id}
+          <if test="storeId != null">AND m.store_id = #{storeId}</if>
+        FOR UPDATE
+    </select>
+
+    <select id="selectMembersByMobileSuffix" resultType="map">
+        SELECT <include refid="MemberSelect"/>
+        <include refid="MemberFrom"/>
+        WHERE <include refid="VisibleMemberWhere"/>
+          AND m.store_id = #{storeId}
+          AND RIGHT(m.mobile, 4) = #{suffix}
+        ORDER BY m.id DESC
+    </select>
+
+    <select id="selectMemberByMobile" resultType="map">
+        SELECT <include refid="MemberSelect"/>
+        <include refid="MemberFrom"/>
+        WHERE <include refid="VisibleMemberWhere"/>
+          AND m.store_id = #{storeId}
+          AND m.mobile = #{mobile}
+        LIMIT 1
+    </select>
+
+    <insert id="insertMember" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO store_member (store_id, member_no, name, mobile, gender, age, avatar_url, status)
+        VALUES (#{storeId}, #{memberNo}, #{name}, #{mobile}, #{gender}, #{age}, #{avatarUrl}, 'ACTIVE')
+    </insert>
+
+    <insert id="insertWallet">
+        INSERT INTO member_wallet (member_id)
+        VALUES (#{memberId})
+    </insert>
+
+    <update id="updateMember" parameterType="map">
+        UPDATE store_member
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="mobile != null">mobile = #{mobile},</if>
+            <if test="gender != null">gender = #{gender},</if>
+            <if test="age != null">age = #{age},</if>
+            <if test="avatarUrl != null">avatar_url = #{avatarUrl},</if>
+            <if test="status != null">status = #{status},</if>
+        </set>
+        WHERE id = #{id}
+          <if test="storeId != null">AND store_id = #{storeId}</if>
+          AND deleted_at IS NULL
+    </update>
+
+    <update id="softDeleteMember">
+        UPDATE store_member
+        SET status = 'DELETED',
+            deleted_at = COALESCE(deleted_at, CURRENT_TIMESTAMP)
+        WHERE id = #{id}
+          <if test="storeId != null">AND store_id = #{storeId}</if>
+          AND deleted_at IS NULL
+    </update>
+
+    <select id="countTransactions" resultType="int">
+        SELECT COUNT(*)
+        FROM wallet_transaction tx
+        WHERE tx.member_id = #{memberId}
+          <if test="storeId != null">AND tx.store_id = #{storeId}</if>
+          <if test="type != null and type != ''">AND tx.type = #{type}</if>
+    </select>
+
+    <select id="selectTransactions" resultType="map">
+        SELECT <include refid="TransactionSelect"/>
+        FROM wallet_transaction tx
+        JOIN store_account s ON s.id = tx.store_id
+        LEFT JOIN store_member m ON m.id = tx.member_id
+        WHERE tx.member_id = #{memberId}
+          <if test="storeId != null">AND tx.store_id = #{storeId}</if>
+          <if test="type != null and type != ''">AND tx.type = #{type}</if>
+        ORDER BY tx.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="selectRecentTransactions" resultType="map">
+        SELECT <include refid="TransactionSelect"/>
+        FROM wallet_transaction tx
+        JOIN store_account s ON s.id = tx.store_id
+        LEFT JOIN store_member m ON m.id = tx.member_id
+        WHERE tx.store_id = #{storeId}
+          <if test="type != null and type != ''">AND tx.type = #{type}</if>
+        ORDER BY tx.id DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectWalletForUpdate" resultType="map">
+        SELECT member_id AS memberId,
+               recharge_balance AS rechargeBalance,
+               gift_balance AS giftBalance,
+               accumulated_recharge AS accumulatedRecharge,
+               accumulated_gift AS accumulatedGift,
+               accumulated_consumption AS accumulatedConsumption,
+               recharge_count AS rechargeCount,
+               consumption_count AS consumptionCount,
+               version
+        FROM member_wallet
+        WHERE member_id = #{memberId}
+        FOR UPDATE
+    </select>
+
+    <update id="updateWallet" parameterType="map">
+        UPDATE member_wallet
+        SET recharge_balance = #{rechargeBalance},
+            gift_balance = #{giftBalance},
+            accumulated_recharge = #{accumulatedRecharge},
+            accumulated_gift = #{accumulatedGift},
+            accumulated_consumption = #{accumulatedConsumption},
+            recharge_count = #{rechargeCount},
+            consumption_count = #{consumptionCount},
+            version = version + 1
+        WHERE member_id = #{memberId}
+    </update>
+
+    <insert id="insertTransaction" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO wallet_transaction (
+            serial_no,
+            store_id,
+            member_id,
+            original_transaction_id,
+            idempotency_key,
+            type,
+            status,
+            amount,
+            gift_amount,
+            before_recharge_balance,
+            before_gift_balance,
+            before_total_balance,
+            after_recharge_balance,
+            after_gift_balance,
+            after_total_balance,
+            payment_method,
+            item_name,
+            remark,
+            operator_type,
+            operator_id
+        )
+        VALUES (
+            #{serialNo},
+            #{storeId},
+            #{memberId},
+            #{originalTransactionId},
+            #{idempotencyKey},
+            #{type},
+            #{status},
+            #{amount},
+            #{giftAmount},
+            #{beforeRechargeBalance},
+            #{beforeGiftBalance},
+            #{beforeTotalBalance},
+            #{afterRechargeBalance},
+            #{afterGiftBalance},
+            #{afterTotalBalance},
+            #{paymentMethod},
+            #{itemName},
+            #{remark},
+            #{operatorType},
+            #{operatorId}
+        )
+    </insert>
+
+    <select id="selectTransactionForUpdate" resultType="map">
+        SELECT tx.*
+        FROM wallet_transaction tx
+        WHERE tx.id = #{id}
+          <if test="storeId != null">AND tx.store_id = #{storeId}</if>
+        FOR UPDATE
+    </select>
+
+    <update id="markTransactionReversed">
+        UPDATE wallet_transaction
+        SET status = 'REVERSED',
+            reversed_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateMerchantProfile">
+        UPDATE store_account
+        SET shop_name = #{shopName},
+            avatar_url = #{avatarUrl}
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectActivityRows" resultType="map">
+        SELECT shop_name AS storeName,
+               address,
+               0 AS avgUsageMinutes,
+               0 AS openCount,
+               CASE WHEN status = 'DISABLED' THEN 'LOW_ACTIVE' ELSE 'ACTIVE' END AS activityStatus,
+               DATE_FORMAT(CURRENT_DATE - INTERVAL 1 DAY, '%Y-%m-%d') AS statDate
+        FROM store_account
+        ORDER BY id
+    </select>
+</mapper>

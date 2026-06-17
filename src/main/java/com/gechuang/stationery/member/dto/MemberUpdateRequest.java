@@ -1,7 +1,6 @@
 package com.gechuang.stationery.member.dto;
 
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -9,7 +8,6 @@ import lombok.Data;
 @Data
 public class MemberUpdateRequest {
 
-    @NotNull
     private Long id;
 
     @Size(max = 64)

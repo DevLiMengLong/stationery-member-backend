@@ -4,6 +4,7 @@
 <mapper namespace="com.gechuang.stationery.member.mapper.MemberMapper">
     <resultMap id="MemberResultMap" type="com.gechuang.stationery.member.entity.Member">
         <id column="id" property="id"/>
+        <result column="store_id" property="storeId"/>
         <result column="member_no" property="memberNo"/>
         <result column="name" property="name"/>
         <result column="mobile" property="mobile"/>
@@ -15,56 +16,120 @@
     </resultMap>
 
     <sql id="BaseColumns">
-        id, member_no, name, mobile, level, points, status, created_at, updated_at
+        m.id,
+        m.store_id,
+        m.member_no,
+        m.name,
+        m.mobile,
+        CASE
+            WHEN COALESCE(w.recharge_balance, 0.00) + COALESCE(w.gift_balance, 0.00) >= 500.00
+                THEN 'VIP'
+            ELSE 'NORMAL'
+        END AS level,
+        CAST(COALESCE(w.recharge_balance, 0.00) + COALESCE(w.gift_balance, 0.00) AS SIGNED) AS points,
+        CASE WHEN m.status = 'ACTIVE' THEN 1 ELSE 0 END AS status,
+        m.created_at,
+        m.updated_at
     </sql>
 
     <select id="selectMembers" resultMap="MemberResultMap">
         SELECT <include refid="BaseColumns"/>
-        FROM stationery_member
+        FROM store_member m
+        LEFT JOIN member_wallet w ON w.member_id = m.id
         <where>
+            m.deleted_at IS NULL
+            AND m.status != 'DELETED'
             <if test="keyword != null and keyword != ''">
-                AND (name LIKE CONCAT('%', #{keyword}, '%')
-                     OR mobile LIKE CONCAT('%', #{keyword}, '%')
-                     OR member_no LIKE CONCAT('%', #{keyword}, '%'))
+                AND (m.name LIKE CONCAT('%', #{keyword}, '%')
+                     OR m.mobile LIKE CONCAT('%', #{keyword}, '%')
+                     OR m.member_no LIKE CONCAT('%', #{keyword}, '%'))
             </if>
         </where>
-        ORDER BY id DESC
+        ORDER BY m.id DESC
         LIMIT 100
     </select>
 
     <select id="selectById" resultMap="MemberResultMap">
         SELECT <include refid="BaseColumns"/>
-        FROM stationery_member
-        WHERE id = #{id}
+        FROM store_member m
+        LEFT JOIN member_wallet w ON w.member_id = m.id
+        WHERE m.id = #{id}
+          AND m.deleted_at IS NULL
+          AND m.status != 'DELETED'
     </select>
 
     <select id="selectByMobile" resultMap="MemberResultMap">
         SELECT <include refid="BaseColumns"/>
-        FROM stationery_member
-        WHERE mobile = #{mobile}
+        FROM store_member m
+        LEFT JOIN member_wallet w ON w.member_id = m.id
+        WHERE m.store_id = #{storeId}
+          AND m.mobile = #{mobile}
+          AND m.deleted_at IS NULL
+          AND m.status != 'DELETED'
         LIMIT 1
     </select>
 
     <insert id="insert" parameterType="com.gechuang.stationery.member.entity.Member"
             useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO stationery_member (member_no, name, mobile, level, points, status)
-        VALUES (#{memberNo}, #{name}, #{mobile}, #{level}, #{points}, #{status})
+        INSERT INTO store_member (store_id, member_no, name, mobile, gender, age, status)
+        VALUES (
+            #{storeId},
+            #{memberNo},
+            #{name},
+            #{mobile},
+            'MALE',
+            0,
+            CASE WHEN #{status} = 1 THEN 'ACTIVE' ELSE 'DISABLED' END
+        )
     </insert>
 
     <update id="update" parameterType="com.gechuang.stationery.member.entity.Member">
-        UPDATE stationery_member
+        UPDATE store_member
         <set>
             <if test="name != null">name = #{name},</if>
             <if test="mobile != null">mobile = #{mobile},</if>
-            <if test="level != null">level = #{level},</if>
-            <if test="points != null">points = #{points},</if>
-            <if test="status != null">status = #{status},</if>
+            <if test="status != null">
+                status = CASE WHEN #{status} = 1 THEN 'ACTIVE' ELSE 'DISABLED' END,
+            </if>
         </set>
         WHERE id = #{id}
+          AND deleted_at IS NULL
     </update>
 
-    <delete id="deleteById">
-        DELETE FROM stationery_member
+    <insert id="upsertWalletPoints">
+        INSERT INTO member_wallet (
+            member_id,
+            recharge_balance,
+            gift_balance,
+            accumulated_recharge,
+            accumulated_gift,
+            accumulated_consumption,
+            recharge_count,
+            consumption_count
+        )
+        VALUES (
+            #{memberId},
+            #{points},
+            0.00,
+            #{points},
+            0.00,
+            0.00,
+            CASE WHEN #{points} > 0 THEN 1 ELSE 0 END,
+            0
+        )
+        ON DUPLICATE KEY UPDATE
+            recharge_balance = VALUES(recharge_balance),
+            gift_balance = VALUES(gift_balance),
+            accumulated_recharge = VALUES(accumulated_recharge),
+            accumulated_gift = VALUES(accumulated_gift),
+            updated_at = CURRENT_TIMESTAMP
+    </insert>
+
+    <update id="softDeleteById">
+        UPDATE store_member
+        SET status = 'DELETED',
+            deleted_at = COALESCE(deleted_at, CURRENT_TIMESTAMP)
         WHERE id = #{id}
-    </delete>
+          AND deleted_at IS NULL
+    </update>
 </mapper>

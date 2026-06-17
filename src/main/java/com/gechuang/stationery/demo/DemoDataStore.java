@@ -536,8 +536,11 @@ public class DemoDataStore {
         return page(rows, pageNo, pageSize);
     }
 
-    public synchronized List<Map<String, Object>> adminMembersForExport(String mobile, String name, Long storeIdValue) {
-        return adminMembers(mobile, name, storeIdValue, null, null, null, null, 1, 5001).getRecords();
+    public synchronized List<Map<String, Object>> adminMembersForExport(String mobile, String name, Long storeIdValue,
+                                                                         BigDecimal rechargeMin, BigDecimal rechargeMax,
+                                                                         BigDecimal consumptionMin, BigDecimal consumptionMax) {
+        return adminMembers(mobile, name, storeIdValue, rechargeMin, rechargeMax,
+                consumptionMin, consumptionMax, 1, 5001).getRecords();
     }
 
     public synchronized List<Map<String, Object>> activityRows() {
@@ -702,6 +705,14 @@ public class DemoDataStore {
         tx.operatorId = storeIdValue;
         tx.createdAt = LocalDateTime.now().minusDays(tx.id);
         transactions.put(tx.id, tx);
+        if ("RECHARGE".equals(type)) {
+            wallet.accumulatedRecharge = wallet.accumulatedRecharge.add(tx.amount).setScale(2);
+            wallet.accumulatedGift = wallet.accumulatedGift.add(tx.giftAmount).setScale(2);
+            wallet.rechargeCount++;
+        } else if ("CONSUMPTION".equals(type)) {
+            wallet.accumulatedConsumption = wallet.accumulatedConsumption.add(tx.amount).setScale(2);
+            wallet.consumptionCount++;
+        }
     }
 
     private Map<String, Object> reverseRecharge(TransactionRecord source, String operatorType, Long operatorId) {
@@ -711,9 +722,9 @@ public class DemoDataStore {
             throw new BusinessException(ErrorCode.BIZ_409, "余额不足，无法撤销充值");
         }
         WalletSnapshot before = wallet.snapshot();
-        wallet.giftBalance = wallet.giftBalance.subtract(source.giftAmount.min(wallet.giftBalance)).setScale(2);
-        BigDecimal remaining = totalReturn.subtract(before.giftBalance().min(source.giftAmount));
-        wallet.rechargeBalance = wallet.rechargeBalance.subtract(remaining.min(wallet.rechargeBalance)).setScale(2);
+        WalletSnapshot after = WalletCalculator.deduct(before, totalReturn);
+        wallet.rechargeBalance = after.rechargeBalance();
+        wallet.giftBalance = after.giftBalance();
         wallet.accumulatedRecharge = wallet.accumulatedRecharge.subtract(source.amount).max(BigDecimal.ZERO).setScale(2);
         wallet.accumulatedGift = wallet.accumulatedGift.subtract(source.giftAmount).max(BigDecimal.ZERO).setScale(2);
         wallet.version++;
@@ -905,6 +916,7 @@ public class DemoDataStore {
         map.put("username", admin.username);
         map.put("displayName", admin.displayName);
         map.put("role", admin.role);
+        map.put("roleLabel", roleLabel(admin.role));
         map.put("avatarUrl", admin.avatarUrl);
         map.put("status", admin.status);
         return map;
@@ -924,6 +936,7 @@ public class DemoDataStore {
         map.put("avatarUrl", member.avatarUrl);
         map.put("status", member.status);
         map.put("availableBalance", money(wallet.total()));
+        map.put("totalBalance", money(wallet.total()));
         map.put("joinedAt", format(member.joinedAt));
         return map;
     }
@@ -931,6 +944,7 @@ public class DemoDataStore {
     private Map<String, Object> adminMemberMap(MemberRecord member) {
         Map<String, Object> map = memberListMap(member);
         WalletRecord wallet = wallets.get(member.id);
+        map.put("totalBalance", money(wallet.total()));
         map.put("accumulatedRecharge", money(wallet.accumulatedRecharge));
         map.put("accumulatedConsumption", money(wallet.accumulatedConsumption));
         return map;
@@ -957,6 +971,13 @@ public class DemoDataStore {
         map.put("giftAmount", money(tier.giftAmount));
         map.put("updatedAt", format(tier.updatedAt));
         return map;
+    }
+
+    private String roleLabel(String role) {
+        if ("SUPER_ADMIN".equals(role)) {
+            return "系统管理员";
+        }
+        return role;
     }
 
     private Map<String, Object> transactionMap(TransactionRecord tx) {
