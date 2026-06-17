@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gechuang.stationery.member.mapper.MemberMapper">
+    <resultMap id="MemberResultMap" type="com.gechuang.stationery.member.entity.Member">
+        <id column="id" property="id"/>
+        <result column="member_no" property="memberNo"/>
+        <result column="name" property="name"/>
+        <result column="mobile" property="mobile"/>
+        <result column="level" property="level"/>
+        <result column="points" property="points"/>
+        <result column="status" property="status"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, member_no, name, mobile, level, points, status, created_at, updated_at
+    </sql>
+
+    <select id="selectMembers" resultMap="MemberResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM stationery_member
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (name LIKE CONCAT('%', #{keyword}, '%')
+                     OR mobile LIKE CONCAT('%', #{keyword}, '%')
+                     OR member_no LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+        ORDER BY id DESC
+        LIMIT 100
+    </select>
+
+    <select id="selectById" resultMap="MemberResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM stationery_member
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByMobile" resultMap="MemberResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM stationery_member
+        WHERE mobile = #{mobile}
+        LIMIT 1
+    </select>
+
+    <insert id="insert" parameterType="com.gechuang.stationery.member.entity.Member"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO stationery_member (member_no, name, mobile, level, points, status)
+        VALUES (#{memberNo}, #{name}, #{mobile}, #{level}, #{points}, #{status})
+    </insert>
+
+    <update id="update" parameterType="com.gechuang.stationery.member.entity.Member">
+        UPDATE stationery_member
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="mobile != null">mobile = #{mobile},</if>
+            <if test="level != null">level = #{level},</if>
+            <if test="points != null">points = #{points},</if>
+            <if test="status != null">status = #{status},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM stationery_member
+        WHERE id = #{id}
+    </delete>
+</mapper>
