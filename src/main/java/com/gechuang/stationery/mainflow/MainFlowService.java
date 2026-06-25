@@ -3,6 +3,7 @@ package com.gechuang.stationery.mainflow;
 import com.gechuang.stationery.common.BusinessException;
 import com.gechuang.stationery.common.ErrorCode;
 import com.gechuang.stationery.common.PageResult;
+import com.gechuang.stationery.notification.MemberNotificationService;
 import com.gechuang.stationery.recharge.RechargeTierRule;
 import com.gechuang.stationery.transaction.RechargeGiftCalculator;
 import com.gechuang.stationery.transaction.WalletCalculator;
@@ -38,9 +39,11 @@ public class MainFlowService {
     private static final DateTimeFormatter SERIAL_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
     private final MainFlowMapper mapper;
+    private final MemberNotificationService notificationService;
 
-    public MainFlowService(MainFlowMapper mapper) {
+    public MainFlowService(MainFlowMapper mapper, MemberNotificationService notificationService) {
         this.mapper = mapper;
+        this.notificationService = notificationService;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -200,7 +203,9 @@ public class MainFlowService {
         member.put("avatarUrl", text(body.get("avatarUrl")));
         mapper.insertMember(member);
         mapper.insertWallet(longValue(member.get("id")));
-        return mapper.selectMemberDetail(longValue(member.get("id")), storeId);
+        Map<String, Object> detail = mapper.selectMemberDetail(longValue(member.get("id")), storeId);
+        notificationService.notifyMemberCreated(detail, detail);
+        return detail;
     }
 
     public Map<String, Object> memberDetail(Long storeId, Long id) {
@@ -300,9 +305,11 @@ public class MainFlowService {
                 intValue(wallet.get("rechargeCount"), 0) + 1,
                 intValue(wallet.get("consumptionCount"), 0));
         mapper.updateWallet(wallet);
-        return insertTransaction(storeId, memberId, null, text(body.get("idempotencyKey")), "RECHARGE",
+        Map<String, Object> transaction = insertTransaction(storeId, memberId, null, text(body.get("idempotencyKey")), "RECHARGE",
                 amount, gift, before, after, textOrDefault(body.get("paymentMethod"), "CASH"),
                 textOrDefault(body.get("itemName"), "会员充值"), text(body.get("remark")), "MERCHANT", storeId);
+        notificationService.notifyRechargeSucceeded(transaction);
+        return transaction;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -326,9 +333,11 @@ public class MainFlowService {
                 intValue(wallet.get("rechargeCount"), 0),
                 intValue(wallet.get("consumptionCount"), 0) + 1);
         mapper.updateWallet(wallet);
-        return insertTransaction(storeId, memberId, null, text(body.get("idempotencyKey")), "CONSUMPTION",
+        Map<String, Object> transaction = insertTransaction(storeId, memberId, null, text(body.get("idempotencyKey")), "CONSUMPTION",
                 amount, BigDecimal.ZERO.setScale(2), before, after, textOrDefault(body.get("paymentMethod"), "CASH"),
                 textOrDefault(body.get("itemName"), "消费扣款"), text(body.get("remark")), "MERCHANT", storeId);
+        notificationService.notifyConsumptionSucceeded(transaction);
+        return transaction;
     }
 
     @Transactional(rollbackFor = Exception.class)

@@ -33,3 +33,28 @@ management:
     web:
       exposure:
         include: health
+
+stationery:
+  notification:
+    enabled: true
+    # log: only write rendered messages to backend logs.
+    # wechat-official-account: send WeChat official account template messages.
+    # tencent-cloud-sms: send Tencent Cloud SMS template messages.
+    channel: ${MEMBER_NOTIFICATION_CHANNEL:log}
+    wechat:
+      app-id: ${WECHAT_MP_APP_ID:}
+      app-secret: ${WECHAT_MP_APP_SECRET:}
+      member-created-template-id: ${WECHAT_MP_MEMBER_CREATED_TEMPLATE_ID:}
+      recharge-template-id: ${WECHAT_MP_RECHARGE_TEMPLATE_ID:}
+      consumption-template-id: ${WECHAT_MP_CONSUMPTION_TEMPLATE_ID:}
+      openid-by-mobile: {}
+    tencent-sms:
+      endpoint: ${TENCENT_SMS_ENDPOINT:https://sms.tencentcloudapi.com/}
+      region: ${TENCENT_SMS_REGION:ap-guangzhou}
+      secret-id: ${TENCENT_SMS_SECRET_ID:}
+      secret-key: ${TENCENT_SMS_SECRET_KEY:}
+      sms-sdk-app-id: ${TENCENT_SMS_SDK_APP_ID:}
+      sign-name: ${TENCENT_SMS_SIGN_NAME:}
+      member-created-template-id: ${TENCENT_SMS_MEMBER_CREATED_TEMPLATE_ID:}
+      recharge-template-id: ${TENCENT_SMS_RECHARGE_TEMPLATE_ID:}
+      consumption-template-id: ${TENCENT_SMS_CONSUMPTION_TEMPLATE_ID:}

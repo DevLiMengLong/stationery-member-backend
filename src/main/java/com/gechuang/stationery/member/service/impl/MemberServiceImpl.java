@@ -6,6 +6,7 @@ import com.gechuang.stationery.member.entity.Member;
 import com.gechuang.stationery.member.mapper.MemberMapper;
 import com.gechuang.stationery.member.service.MemberService;
 import com.gechuang.stationery.member.vo.MemberVO;
+import com.gechuang.stationery.notification.MemberNotificationService;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -23,9 +24,11 @@ public class MemberServiceImpl implements MemberService {
     private static final DateTimeFormatter MEMBER_NO_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
     private final MemberMapper memberMapper;
+    private final MemberNotificationService notificationService;
 
-    public MemberServiceImpl(MemberMapper memberMapper) {
+    public MemberServiceImpl(MemberMapper memberMapper, MemberNotificationService notificationService) {
         this.memberMapper = memberMapper;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -51,7 +54,9 @@ public class MemberServiceImpl implements MemberService {
         member.setStatus(STATUS_ENABLED);
         memberMapper.insert(member);
         memberMapper.upsertWalletPoints(member.getId(), normalizePoints(request.getPoints()));
-        return MemberVO.fromEntity(memberMapper.selectById(member.getId()));
+        MemberVO created = MemberVO.fromEntity(memberMapper.selectById(member.getId()));
+        notificationService.notifyMemberCreated(memberMapper.selectStoreNameById(DEFAULT_STORE_ID), created.getMobile());
+        return created;
     }
 
     @Override

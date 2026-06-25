@@ -69,6 +69,12 @@
         LIMIT 1
     </select>
 
+    <select id="selectStoreNameById" resultType="string">
+        SELECT shop_name
+        FROM store_account
+        WHERE id = #{storeId}
+    </select>
+
     <insert id="insert" parameterType="com.gechuang.stationery.member.entity.Member"
             useGeneratedKeys="true" keyProperty="id">
         INSERT INTO store_member (store_id, member_no, name, mobile, gender, age, status)

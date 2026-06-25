@@ -12,6 +12,8 @@ public interface MemberMapper {
 
     Member selectByMobile(@Param("storeId") Long storeId, @Param("mobile") String mobile);
 
+    String selectStoreNameById(@Param("storeId") Long storeId);
+
     int insert(Member member);
 
     int update(Member member);
