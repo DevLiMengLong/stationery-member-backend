@@ -281,21 +281,22 @@ public class DemoDataStore {
     }
 
     public synchronized Map<String, Object> lookupMember(StoreAccount store, String keyword) {
+        String value = string(keyword);
         List<MemberRecord> candidates = activeMembers(store.id).stream()
                 .filter(member -> {
-                    if (keyword == null) {
+                    if (!StringUtils.hasText(value) || !value.chars().allMatch(Character::isDigit)) {
                         return false;
                     }
-                    if (keyword.length() == 11) {
-                        return Objects.equals(member.mobile, keyword);
+                    if (value.length() == 11) {
+                        return Objects.equals(member.mobile, value);
                     }
-                    return member.mobile.endsWith(keyword);
+                    return value.length() >= 4 && member.mobile.contains(value);
                 })
                 .toList();
         Map<String, Object> result = new LinkedHashMap<>();
         if (candidates.isEmpty()) {
             result.put("matchType", "NONE");
-        } else if (keyword.length() == 11) {
+        } else if (value.length() == 11) {
             result.put("matchType", "EXACT");
             result.put("member", memberListMap(candidates.get(0)));
         } else if (candidates.size() == 1) {
@@ -341,9 +342,17 @@ public class DemoDataStore {
         }
         MemberRecord member = requireTradableMember(store.id, longValue(body.get("memberId")));
         BigDecimal amount = decimal(body.get("amount"));
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_422, "扣款金额必须大于 0");
+        }
         WalletRecord wallet = wallets.get(member.id);
         WalletSnapshot before = wallet.snapshot();
-        WalletSnapshot after = WalletCalculator.consume(before, amount);
+        WalletSnapshot after;
+        try {
+            after = WalletCalculator.consume(before, amount);
+        } catch (IllegalArgumentException exception) {
+            throw new BusinessException(ErrorCode.BIZ_409, "余额不足");
+        }
         wallet.rechargeBalance = after.rechargeBalance();
         wallet.giftBalance = after.giftBalance();
         wallet.accumulatedConsumption = wallet.accumulatedConsumption.add(amount).setScale(2);

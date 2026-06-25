@@ -1,7 +1,9 @@
 package com.gechuang.stationery.demo;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.gechuang.stationery.common.BusinessException;
 import com.gechuang.stationery.common.PageResult;
 import jakarta.servlet.http.Cookie;
 import java.math.BigDecimal;
@@ -66,6 +68,23 @@ class DemoDataStorePaginationTest {
         Map<String, Object> lookup = dataStore.lookupMember(merchant, "36004");
         assertThat(lookup.get("matchType")).isEqualTo("SUFFIX_SINGLE");
         assertThat(mapValue(lookup, "member")).containsEntry("totalBalance", "535.00");
+
+        Map<String, Object> partialLookup = dataStore.lookupMember(merchant, "137001");
+        assertThat(partialLookup.get("matchType")).isEqualTo("SUFFIX_SINGLE");
+        assertThat(mapValue(partialLookup, "member"))
+                .containsEntry("name", "余额不足会员")
+                .containsEntry("mobile", "13700137009");
+    }
+
+    @Test
+    void demoConsumptionShouldExposeChineseInsufficientBalanceMessage() {
+        DemoDataStore dataStore = new DemoDataStore();
+        DemoDataStore.StoreAccount merchant = loginMerchant(dataStore);
+        Long memberId = memberIdByName(dataStore, merchant, "余额不足会员");
+
+        assertThatThrownBy(() -> dataStore.consume(merchant, Map.of("memberId", memberId, "amount", "1.00")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("余额不足");
     }
 
     @Test

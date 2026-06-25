@@ -401,13 +401,19 @@
         FOR UPDATE
     </select>
 
-    <select id="selectMembersByMobileSuffix" resultType="map">
+    <select id="selectMembersByMobileKeyword" resultType="map">
         SELECT <include refid="MemberSelect"/>
         <include refid="MemberFrom"/>
         WHERE <include refid="VisibleMemberWhere"/>
           AND m.store_id = #{storeId}
-          AND RIGHT(m.mobile, 4) = #{suffix}
-        ORDER BY m.id DESC
+          AND m.mobile LIKE CONCAT('%', #{keyword}, '%')
+        ORDER BY
+          CASE
+            WHEN m.mobile = #{keyword} THEN 0
+            WHEN RIGHT(m.mobile, 4) = #{keyword} THEN 1
+            ELSE 2
+          END,
+          m.id DESC
     </select>
 
     <select id="selectMemberByMobile" resultType="map">

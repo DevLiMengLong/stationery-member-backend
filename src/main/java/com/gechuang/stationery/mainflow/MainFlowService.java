@@ -257,8 +257,8 @@ public class MainFlowService {
             Map<String, Object> member = mapper.selectMemberByMobile(storeId, value);
             return member == null ? Map.of("matchType", "NONE") : Map.of("matchType", "MOBILE", "member", member);
         }
-        if (value.length() == 4 && value.chars().allMatch(Character::isDigit)) {
-            List<Map<String, Object>> candidates = mapper.selectMembersByMobileSuffix(storeId, value);
+        if (value.length() >= 4 && value.chars().allMatch(Character::isDigit)) {
+            List<Map<String, Object>> candidates = mapper.selectMembersByMobileKeyword(storeId, value);
             if (candidates.isEmpty()) {
                 return Map.of("matchType", "NONE");
             }

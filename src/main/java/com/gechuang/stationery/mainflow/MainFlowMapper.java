@@ -106,8 +106,8 @@ public interface MainFlowMapper {
 
     Map<String, Object> selectMemberDetailForUpdate(@Param("id") Long id, @Param("storeId") Long storeId);
 
-    List<Map<String, Object>> selectMembersByMobileSuffix(@Param("storeId") Long storeId,
-                                                          @Param("suffix") String suffix);
+    List<Map<String, Object>> selectMembersByMobileKeyword(@Param("storeId") Long storeId,
+                                                           @Param("keyword") String keyword);
 
     Map<String, Object> selectMemberByMobile(@Param("storeId") Long storeId, @Param("mobile") String mobile);
 
