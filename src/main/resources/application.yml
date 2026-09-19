@@ -40,6 +40,7 @@ stationery:
     # log: only write rendered messages to backend logs.
     # wechat-official-account: send WeChat official account template messages.
     # tencent-cloud-sms: send Tencent Cloud SMS template messages.
+    # aliyun-sms: send Alibaba Cloud SMS template messages.
     channel: ${MEMBER_NOTIFICATION_CHANNEL:log}
     wechat:
       app-id: ${WECHAT_MP_APP_ID:}
@@ -58,3 +59,12 @@ stationery:
       member-created-template-id: ${TENCENT_SMS_MEMBER_CREATED_TEMPLATE_ID:}
       recharge-template-id: ${TENCENT_SMS_RECHARGE_TEMPLATE_ID:}
       consumption-template-id: ${TENCENT_SMS_CONSUMPTION_TEMPLATE_ID:}
+    aliyun-sms:
+      endpoint: ${ALIYUN_SMS_ENDPOINT:dysmsapi.aliyuncs.com}
+      sign-name: ${ALIYUN_SMS_SIGN_NAME:}
+      member-created-template-code: ${ALIYUN_SMS_MEMBER_CREATED_TEMPLATE_CODE:}
+      recharge-template-code: ${ALIYUN_SMS_RECHARGE_TEMPLATE_CODE:}
+      consumption-template-code: ${ALIYUN_SMS_CONSUMPTION_TEMPLATE_CODE:}
+      member-created-param-names: ${ALIYUN_SMS_MEMBER_CREATED_PARAM_NAMES:storeName}
+      recharge-param-names: ${ALIYUN_SMS_RECHARGE_PARAM_NAMES:storeName,mobileSuffix,amount,giftAmount,balance}
+      consumption-param-names: ${ALIYUN_SMS_CONSUMPTION_PARAM_NAMES:storeName,mobileSuffix,amount,balance}

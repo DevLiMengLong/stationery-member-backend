@@ -11,6 +11,7 @@ public class MemberNotificationProperties {
     private String channel = "log";
     private Wechat wechat = new Wechat();
     private TencentSms tencentSms = new TencentSms();
+    private AliyunSms aliyunSms = new AliyunSms();
 
     public boolean isEnabled() {
         return enabled;
@@ -42,6 +43,14 @@ public class MemberNotificationProperties {
 
     public void setTencentSms(TencentSms tencentSms) {
         this.tencentSms = tencentSms;
+    }
+
+    public AliyunSms getAliyunSms() {
+        return aliyunSms;
+    }
+
+    public void setAliyunSms(AliyunSms aliyunSms) {
+        this.aliyunSms = aliyunSms;
     }
 
     public static class Wechat {
@@ -182,6 +191,81 @@ public class MemberNotificationProperties {
 
         public void setConsumptionTemplateId(String consumptionTemplateId) {
             this.consumptionTemplateId = consumptionTemplateId;
+        }
+    }
+
+    public static class AliyunSms {
+        private String endpoint = "dysmsapi.aliyuncs.com";
+        private String signName;
+        private String memberCreatedTemplateCode;
+        private String rechargeTemplateCode;
+        private String consumptionTemplateCode;
+        private String memberCreatedParamNames = "storeName";
+        private String rechargeParamNames = "storeName,mobileSuffix,amount,giftAmount,balance";
+        private String consumptionParamNames = "storeName,mobileSuffix,amount,balance";
+
+        public String getEndpoint() {
+            return endpoint;
+        }
+
+        public void setEndpoint(String endpoint) {
+            this.endpoint = endpoint;
+        }
+
+        public String getSignName() {
+            return signName;
+        }
+
+        public void setSignName(String signName) {
+            this.signName = signName;
+        }
+
+        public String getMemberCreatedTemplateCode() {
+            return memberCreatedTemplateCode;
+        }
+
+        public void setMemberCreatedTemplateCode(String memberCreatedTemplateCode) {
+            this.memberCreatedTemplateCode = memberCreatedTemplateCode;
+        }
+
+        public String getRechargeTemplateCode() {
+            return rechargeTemplateCode;
+        }
+
+        public void setRechargeTemplateCode(String rechargeTemplateCode) {
+            this.rechargeTemplateCode = rechargeTemplateCode;
+        }
+
+        public String getConsumptionTemplateCode() {
+            return consumptionTemplateCode;
+        }
+
+        public void setConsumptionTemplateCode(String consumptionTemplateCode) {
+            this.consumptionTemplateCode = consumptionTemplateCode;
+        }
+
+        public String getMemberCreatedParamNames() {
+            return memberCreatedParamNames;
+        }
+
+        public void setMemberCreatedParamNames(String memberCreatedParamNames) {
+            this.memberCreatedParamNames = memberCreatedParamNames;
+        }
+
+        public String getRechargeParamNames() {
+            return rechargeParamNames;
+        }
+
+        public void setRechargeParamNames(String rechargeParamNames) {
+            this.rechargeParamNames = rechargeParamNames;
+        }
+
+        public String getConsumptionParamNames() {
+            return consumptionParamNames;
+        }
+
+        public void setConsumptionParamNames(String consumptionParamNames) {
+            this.consumptionParamNames = consumptionParamNames;
         }
     }
 }
