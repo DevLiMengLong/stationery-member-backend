@@ -34,12 +34,13 @@ class MemberServiceNotificationTest {
         Member created = new Member();
         created.setId(99L);
         created.setMobile("13800000073");
+        created.setMemberNo("M202609190073");
         created.setName("测试会员");
         created.setStatus(1);
         when(memberMapper.selectById(99L)).thenReturn(created);
 
         service.createMember(request);
 
-        verify(notificationService).notifyMemberCreated("晨光文具店", "13800000073");
+        verify(notificationService).notifyMemberCreated("晨光文具店", "M202609190073", "13800000073");
     }
 }

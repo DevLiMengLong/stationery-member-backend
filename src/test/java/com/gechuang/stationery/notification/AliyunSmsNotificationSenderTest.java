@@ -39,7 +39,7 @@ class AliyunSmsNotificationSenderTest {
     void shouldSendRechargeSmsWithAliyunTemplateParams() throws Exception {
         MemberNotificationProperties properties = new MemberNotificationProperties();
         properties.getAliyunSms().setSignName("智墨云软件");
-        properties.getAliyunSms().setRechargeTemplateCode("SMS_512315697");
+        properties.getAliyunSms().setRechargeTemplateCode("SMS_512281100");
         Client client = mock(Client.class);
         SendSmsResponse response = new SendSmsResponse()
                 .setBody(new SendSmsResponseBody().setCode("OK").setMessage("OK"));
@@ -54,7 +54,7 @@ class AliyunSmsNotificationSenderTest {
                 null,
                 "充值成功",
                 java.util.Map.of(),
-                java.util.List.of("晨光文具店", "0073", "100", "10", "110")
+                java.util.List.of("晨光文具店", "100", "10")
         ));
 
         ArgumentCaptor<SendSmsRequest> requestCaptor = ArgumentCaptor.forClass(SendSmsRequest.class);
@@ -62,20 +62,18 @@ class AliyunSmsNotificationSenderTest {
         SendSmsRequest request = requestCaptor.getValue();
         assertThat(request.getPhoneNumbers()).isEqualTo("13800000073");
         assertThat(request.getSignName()).isEqualTo("智墨云软件");
-        assertThat(request.getTemplateCode()).isEqualTo("SMS_512315697");
+        assertThat(request.getTemplateCode()).isEqualTo("SMS_512281100");
         JsonNode params = new ObjectMapper().readTree(request.getTemplateParam());
-        assertThat(params.get("storeName").asText()).isEqualTo("晨光文具店");
-        assertThat(params.get("mobileSuffix").asText()).isEqualTo("0073");
-        assertThat(params.get("amount").asText()).isEqualTo("100");
-        assertThat(params.get("giftAmount").asText()).isEqualTo("10");
-        assertThat(params.get("balance").asText()).isEqualTo("110");
+        assertThat(params.get("business_code").asText()).isEqualTo("晨光文具店");
+        assertThat(params.get("input").asText()).isEqualTo("100");
+        assertThat(params.get("input_gift").asText()).isEqualTo("10");
     }
 
     @Test
     void shouldFailWhenAliyunReturnsNonOkCode() throws Exception {
         MemberNotificationProperties properties = new MemberNotificationProperties();
         properties.getAliyunSms().setSignName("智墨云软件");
-        properties.getAliyunSms().setConsumptionTemplateCode("SMS_512400677");
+        properties.getAliyunSms().setConsumptionTemplateCode("SMS_512231098");
         Client client = mock(Client.class);
         SendSmsResponse response = new SendSmsResponse()
                 .setBody(new SendSmsResponseBody().setCode("isv.BUSINESS_LIMIT_CONTROL")
@@ -92,7 +90,7 @@ class AliyunSmsNotificationSenderTest {
                 null,
                 "消费成功",
                 java.util.Map.of(),
-                java.util.List.of("晨光文具店", "0073", "10", "100")
+                java.util.List.of("晨光文具店", "10", "100")
         ))).isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("触发流控");
     }
@@ -101,7 +99,7 @@ class AliyunSmsNotificationSenderTest {
     void shouldOmitTemplateParamWhenTemplateHasNoVariables() throws Exception {
         MemberNotificationProperties properties = new MemberNotificationProperties();
         properties.getAliyunSms().setSignName("智墨云软件");
-        properties.getAliyunSms().setRechargeTemplateCode("SMS_512315697");
+        properties.getAliyunSms().setRechargeTemplateCode("SMS_512281100");
         properties.getAliyunSms().setRechargeParamNames("");
         Client client = mock(Client.class);
         when(client.sendSmsWithOptions(any(SendSmsRequest.class), any(RuntimeOptions.class)))
@@ -116,7 +114,7 @@ class AliyunSmsNotificationSenderTest {
                 null,
                 "充值成功",
                 java.util.Map.of(),
-                java.util.List.of("晨光文具店", "0073", "100", "10", "110")
+                java.util.List.of("晨光文具店", "100", "10")
         ));
 
         ArgumentCaptor<SendSmsRequest> requestCaptor = ArgumentCaptor.forClass(SendSmsRequest.class);

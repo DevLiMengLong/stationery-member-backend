@@ -65,6 +65,6 @@ stationery:
       member-created-template-code: ${ALIYUN_SMS_MEMBER_CREATED_TEMPLATE_CODE:}
       recharge-template-code: ${ALIYUN_SMS_RECHARGE_TEMPLATE_CODE:}
       consumption-template-code: ${ALIYUN_SMS_CONSUMPTION_TEMPLATE_CODE:}
-      member-created-param-names: ${ALIYUN_SMS_MEMBER_CREATED_PARAM_NAMES:storeName}
-      recharge-param-names: ${ALIYUN_SMS_RECHARGE_PARAM_NAMES:storeName,mobileSuffix,amount,giftAmount,balance}
-      consumption-param-names: ${ALIYUN_SMS_CONSUMPTION_PARAM_NAMES:storeName,mobileSuffix,amount,balance}
+      member-created-param-names: ${ALIYUN_SMS_MEMBER_CREATED_PARAM_NAMES:business_code,member_code}
+      recharge-param-names: ${ALIYUN_SMS_RECHARGE_PARAM_NAMES:business_code,input,input_gift}
+      consumption-param-names: ${ALIYUN_SMS_CONSUMPTION_PARAM_NAMES:business_code,output,left}

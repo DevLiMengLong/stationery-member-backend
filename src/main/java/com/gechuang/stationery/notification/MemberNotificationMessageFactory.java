@@ -13,8 +13,9 @@ public class MemberNotificationMessageFactory {
 
     private static final String DEFAULT_STORE_NAME = "文具店";
 
-    public MemberNotificationMessage memberCreated(String storeName, String mobile, String openid) {
+    public MemberNotificationMessage memberCreated(String storeName, String mobile, String memberNo, String openid) {
         String normalizedStoreName = storeName(storeName);
+        String normalizedMemberNo = memberNo(memberNo);
         String content = normalizedStoreName + "，欢迎您加入成为会员，充值更优惠，消费更明白";
         Map<String, String> data = new LinkedHashMap<>();
         data.put("first", "欢迎您加入成为会员");
@@ -26,8 +27,12 @@ public class MemberNotificationMessageFactory {
                 openid,
                 content,
                 data,
-                List.of(normalizedStoreName)
+                List.of(normalizedStoreName, normalizedMemberNo)
         );
+    }
+
+    public MemberNotificationMessage memberCreated(String storeName, String mobile, String openid) {
+        return memberCreated(storeName, mobile, null, openid);
     }
 
     public MemberNotificationMessage rechargeSucceeded(String storeName, String mobile, String openid,
@@ -54,7 +59,7 @@ public class MemberNotificationMessageFactory {
                 openid,
                 content,
                 data,
-                List.of(normalizedStoreName, suffix, amountText, giftText, balanceText)
+                List.of(normalizedStoreName, amountText, giftText)
         );
     }
 
@@ -79,7 +84,7 @@ public class MemberNotificationMessageFactory {
                 openid,
                 content,
                 data,
-                List.of(normalizedStoreName, suffix, amountText, balanceText)
+                List.of(normalizedStoreName, amountText, balanceText)
         );
     }
 
@@ -90,6 +95,10 @@ public class MemberNotificationMessageFactory {
     private String mobileSuffix(String mobile) {
         String value = StringUtils.hasText(mobile) ? mobile.trim() : "";
         return value.length() <= 4 ? value : value.substring(value.length() - 4);
+    }
+
+    private String memberNo(String memberNo) {
+        return StringUtils.hasText(memberNo) ? memberNo.trim() : "";
     }
 
     private String suffixLabel(String suffix) {

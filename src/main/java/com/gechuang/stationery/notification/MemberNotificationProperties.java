@@ -200,9 +200,9 @@ public class MemberNotificationProperties {
         private String memberCreatedTemplateCode;
         private String rechargeTemplateCode;
         private String consumptionTemplateCode;
-        private String memberCreatedParamNames = "storeName";
-        private String rechargeParamNames = "storeName,mobileSuffix,amount,giftAmount,balance";
-        private String consumptionParamNames = "storeName,mobileSuffix,amount,balance";
+        private String memberCreatedParamNames = "business_code,member_code";
+        private String rechargeParamNames = "business_code,input,input_gift";
+        private String consumptionParamNames = "business_code,output,left";
 
         public String getEndpoint() {
             return endpoint;

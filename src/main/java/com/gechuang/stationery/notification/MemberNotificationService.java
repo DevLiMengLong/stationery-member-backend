@@ -31,12 +31,17 @@ public class MemberNotificationService {
         send(messageFactory.memberCreated(
                 text(value(store, "shopName", "storeName")),
                 text(value(member, "mobile")),
+                text(value(member, "memberNo", "memberCode", "member_code")),
                 text(value(member, "wechatOpenid", "openId", "openid"))
         ));
     }
 
     public void notifyMemberCreated(String storeName, String mobile) {
-        send(messageFactory.memberCreated(storeName, mobile, null));
+        notifyMemberCreated(storeName, null, mobile);
+    }
+
+    public void notifyMemberCreated(String storeName, String memberNo, String mobile) {
+        send(messageFactory.memberCreated(storeName, mobile, memberNo, null));
     }
 
     public void notifyRechargeSucceeded(Map<String, Object> transaction) {
