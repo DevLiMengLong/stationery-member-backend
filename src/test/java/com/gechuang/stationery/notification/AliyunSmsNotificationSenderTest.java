@@ -14,9 +14,26 @@ import com.aliyun.teautil.models.RuntimeOptions;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.test.context.support.TestPropertySourceUtils;
 import org.mockito.ArgumentCaptor;
 
 class AliyunSmsNotificationSenderTest {
+
+    @Test
+    void shouldBeConstructibleBySpringWithAliyunChannel() {
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
+                    context, "stationery.notification.channel=aliyun-sms");
+            context.registerBean(ObjectMapper.class, () -> new ObjectMapper());
+            context.registerBean(MemberNotificationProperties.class, () -> new MemberNotificationProperties());
+            context.registerBean(AliyunSmsNotificationSender.class);
+
+            context.refresh();
+
+            assertThat(context.getBean(AliyunSmsNotificationSender.class)).isNotNull();
+        }
+    }
 
     @Test
     void shouldSendRechargeSmsWithAliyunTemplateParams() throws Exception {
