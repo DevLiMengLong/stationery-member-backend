@@ -116,6 +116,67 @@ CREATE TABLE IF NOT EXISTS wallet_transaction (
   CONSTRAINT fk_wallet_transaction_member FOREIGN KEY (member_id) REFERENCES store_member (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='wallet transaction ledger';
 
+CREATE TABLE IF NOT EXISTS store_wechat_binding (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  store_id BIGINT NOT NULL,
+  openid VARCHAR(128) NOT NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_store_wechat_binding_openid (openid),
+  KEY idx_store_wechat_binding_store (store_id),
+  CONSTRAINT fk_store_wechat_binding_store FOREIGN KEY (store_id) REFERENCES store_account (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='miniprogram merchant bindings';
+
+CREATE TABLE IF NOT EXISTS store_wechat_pay_config (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  store_id BIGINT NOT NULL,
+  payment_mode VARCHAR(32) NOT NULL DEFAULT 'BOOKKEEPING',
+  sub_mchid VARCHAR(32) DEFAULT NULL,
+  authorization_status VARCHAR(16) NOT NULL DEFAULT 'PENDING',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_store_wechat_pay_config_store (store_id),
+  KEY idx_store_wechat_pay_config_mode (payment_mode, authorization_status),
+  CONSTRAINT fk_store_wechat_pay_config_store FOREIGN KEY (store_id) REFERENCES store_account (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='per-store WeChat Pay configuration';
+
+CREATE TABLE IF NOT EXISTS wechat_payment_order (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  out_trade_no VARCHAR(64) NOT NULL,
+  wechat_transaction_id VARCHAR(64) DEFAULT NULL,
+  wallet_transaction_id BIGINT DEFAULT NULL,
+  store_id BIGINT NOT NULL,
+  member_id BIGINT NOT NULL,
+  recharge_amount DECIMAL(12,2) NOT NULL,
+  gift_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  sp_mchid VARCHAR(32) NOT NULL,
+  sub_mchid VARCHAR(32) NOT NULL,
+  appid VARCHAR(64) NOT NULL,
+  code_url VARCHAR(2048) DEFAULT NULL,
+  idempotency_key VARCHAR(128) NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'CREATED',
+  failure_code VARCHAR(64) DEFAULT NULL,
+  failure_message VARCHAR(255) DEFAULT NULL,
+  expires_at DATETIME NOT NULL,
+  last_query_at DATETIME DEFAULT NULL,
+  paid_at DATETIME DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_wechat_payment_order_out_trade_no (out_trade_no),
+  UNIQUE KEY uk_wechat_payment_order_wechat_transaction (wechat_transaction_id),
+  UNIQUE KEY uk_wechat_payment_order_wallet_transaction (wallet_transaction_id),
+  UNIQUE KEY uk_wechat_payment_order_idempotency (idempotency_key),
+  KEY idx_wechat_payment_order_store_status (store_id, status, created_at),
+  KEY idx_wechat_payment_order_expiry (status, expires_at),
+  CONSTRAINT fk_wechat_payment_order_store FOREIGN KEY (store_id) REFERENCES store_account (id),
+  CONSTRAINT fk_wechat_payment_order_member FOREIGN KEY (member_id) REFERENCES store_member (id),
+  CONSTRAINT fk_wechat_payment_order_wallet_transaction FOREIGN KEY (wallet_transaction_id) REFERENCES wallet_transaction (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='service-provider Native payment orders';
+
 CREATE TABLE IF NOT EXISTS uploaded_file (
   id BIGINT NOT NULL AUTO_INCREMENT,
   original_name VARCHAR(255) NOT NULL,
