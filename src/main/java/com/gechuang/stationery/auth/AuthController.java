@@ -41,7 +41,7 @@ public class AuthController {
 
     @PostMapping("/merchant/logout")
     public RestResponse<Void> merchantLogout(HttpServletRequest request, HttpServletResponse response) {
-        mainFlowService.logout(request, MainFlowService.MERCHANT_TOKEN);
+        mainFlowService.logoutMerchant(request);
         response.addCookie(tokenCookie(MainFlowService.MERCHANT_TOKEN, "", 0));
         return RestResponse.success();
     }
@@ -61,7 +61,7 @@ public class AuthController {
 
     @PostMapping("/admin/logout")
     public RestResponse<Void> adminLogout(HttpServletRequest request, HttpServletResponse response) {
-        mainFlowService.logout(request, MainFlowService.ADMIN_TOKEN);
+        mainFlowService.logoutAdmin(request);
         response.addCookie(tokenCookie(MainFlowService.ADMIN_TOKEN, "", 0));
         return RestResponse.success();
     }

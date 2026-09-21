@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -73,7 +74,7 @@ public class MainFlowService {
     }
 
     public Map<String, Object> requireMerchant(HttpServletRequest request) {
-        String token = tokenFromCookie(request, MERCHANT_TOKEN);
+        String token = merchantTokenFromRequest(request);
         Map<String, Object> store = mapper.selectStoreByToken(token, LocalDateTime.now());
         if (store == null) {
             throw new BusinessException(ErrorCode.AUTH_401, ErrorCode.AUTH_401.getDefaultMessage());
@@ -92,8 +93,12 @@ public class MainFlowService {
         return publicAdmin(admin);
     }
 
-    public void logout(HttpServletRequest request, String cookieName) {
-        mapper.deleteSession(tokenFromCookie(request, cookieName));
+    public void logoutMerchant(HttpServletRequest request) {
+        mapper.deleteSession(merchantTokenFromRequest(request));
+    }
+
+    public void logoutAdmin(HttpServletRequest request) {
+        mapper.deleteSession(tokenFromCookie(request, ADMIN_TOKEN));
     }
 
     public Map<String, Object> merchantDashboard(Map<String, Object> store) {
@@ -643,6 +648,15 @@ public class MainFlowService {
             }
         }
         return "";
+    }
+
+    private String merchantTokenFromRequest(HttpServletRequest request) {
+        String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
+        if (StringUtils.hasText(authorization)
+                && authorization.regionMatches(true, 0, "Bearer ", 0, 7)) {
+            return authorization.substring(7).trim();
+        }
+        return tokenFromCookie(request, MERCHANT_TOKEN);
     }
 
     private Page page(int pageNo, int pageSize) {
