@@ -3,6 +3,7 @@ package com.gechuang.stationery.payment;
 import com.gechuang.stationery.common.BusinessException;
 import com.gechuang.stationery.common.ErrorCode;
 import com.gechuang.stationery.mainflow.MainFlowMapper;
+import com.gechuang.stationery.payment.gateway.WechatPaymentGateway;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -15,10 +16,13 @@ public class StorePaymentCapabilityService {
 
     private final MainFlowMapper mapper;
     private final WechatPayProperties properties;
+    private final WechatPaymentGateway gateway;
 
-    public StorePaymentCapabilityService(MainFlowMapper mapper, WechatPayProperties properties) {
+    public StorePaymentCapabilityService(MainFlowMapper mapper, WechatPayProperties properties,
+                                         WechatPaymentGateway gateway) {
         this.mapper = mapper;
         this.properties = properties;
+        this.gateway = gateway;
     }
 
     public PaymentCapability capability(Long storeId) {
@@ -47,6 +51,7 @@ public class StorePaymentCapabilityService {
 
         boolean realPaymentAvailable = platformMode == PlatformPaymentMode.WECHAT_SERVICE_PROVIDER
                 && properties.hasCompleteWechatConfiguration()
+                && gateway.isAvailable()
                 && storeMode == PaymentMode.REAL
                 && StringUtils.hasText(subMchid)
                 && AUTHORIZATION_ENABLED.equals(authorizationStatus);

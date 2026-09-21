@@ -6,6 +6,11 @@ import com.gechuang.stationery.common.ErrorCode;
 public class DisabledWechatPaymentGateway implements WechatPaymentGateway {
 
     @Override
+    public boolean isAvailable() {
+        return false;
+    }
+
+    @Override
     public NativeOrder createNativeOrder(CreateNativeOrder command) {
         throw unavailable();
     }

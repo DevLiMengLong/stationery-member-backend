@@ -34,6 +34,11 @@ public class ServiceProviderNativePaymentGateway implements WechatPaymentGateway
     }
 
     @Override
+    public boolean isAvailable() {
+        return true;
+    }
+
+    @Override
     public NativeOrder createNativeOrder(CreateNativeOrder command) {
         PrepayRequest request = new PrepayRequest();
         request.setSpAppid(properties.getWechat().getSpAppId());

@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 
 public interface WechatPaymentGateway {
 
+    boolean isAvailable();
+
     NativeOrder createNativeOrder(CreateNativeOrder command);
 
     GatewayPayment queryByOutTradeNo(String outTradeNo, String subMchid);

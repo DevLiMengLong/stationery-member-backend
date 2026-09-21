@@ -5,14 +5,24 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.gechuang.stationery.mainflow.MainFlowMapper;
+import com.gechuang.stationery.payment.gateway.DisabledWechatPaymentGateway;
+import com.gechuang.stationery.payment.gateway.WechatPaymentGateway;
 import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class StorePaymentCapabilityServiceTest {
 
     private final MainFlowMapper mapper = mock(MainFlowMapper.class);
     private final WechatPayProperties properties = new WechatPayProperties();
-    private final StorePaymentCapabilityService service = new StorePaymentCapabilityService(mapper, properties);
+    private final WechatPaymentGateway gateway = mock(WechatPaymentGateway.class);
+    private StorePaymentCapabilityService service;
+
+    @BeforeEach
+    void setUp() {
+        when(gateway.isAvailable()).thenReturn(true);
+        service = new StorePaymentCapabilityService(mapper, properties, gateway);
+    }
 
     @Test
     void missingStoreConfigDefaultsToBookkeeping() {
@@ -90,6 +100,19 @@ class StorePaymentCapabilityServiceTest {
 
         assertThat(result.configuredStoreMode()).isEqualTo(PaymentMode.BOOKKEEPING);
         assertThat(result.effectiveMode()).isEqualTo(PaymentMode.BOOKKEEPING);
+    }
+
+    @Test
+    void disabledSdkGatewayCannotExposeRealPaymentEvenWhenFieldsArePresent() {
+        enableCompletePlatformConfiguration();
+        when(mapper.selectStoreWechatPayConfig(1L)).thenReturn(realStore("ENABLED"));
+        service = new StorePaymentCapabilityService(
+                mapper, properties, new DisabledWechatPaymentGateway());
+
+        PaymentCapability result = service.capability(1L);
+
+        assertThat(result.effectiveMode()).isEqualTo(PaymentMode.BOOKKEEPING);
+        assertThat(result.realPaymentAvailable()).isFalse();
     }
 
     private Map<String, Object> realStore(String authorizationStatus) {
