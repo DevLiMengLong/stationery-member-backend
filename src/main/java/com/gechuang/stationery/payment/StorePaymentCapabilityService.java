@@ -1,5 +1,7 @@
 package com.gechuang.stationery.payment;
 
+import com.gechuang.stationery.common.BusinessException;
+import com.gechuang.stationery.common.ErrorCode;
 import com.gechuang.stationery.mainflow.MainFlowMapper;
 import java.util.Map;
 import org.springframework.stereotype.Service;
@@ -21,6 +23,22 @@ public class StorePaymentCapabilityService {
 
     public PaymentCapability capability(Long storeId) {
         Map<String, Object> config = mapper.selectStoreWechatPayConfig(storeId);
+        return capability(config);
+    }
+
+    public RealPaymentSettings requireRealPaymentSettings(Long storeId) {
+        Map<String, Object> config = mapper.selectStoreWechatPayConfig(storeId);
+        PaymentCapability capability = capability(config);
+        if (!capability.realPaymentAvailable()) {
+            throw new BusinessException(ErrorCode.BIZ_409, "当前门店仅支持记账模式");
+        }
+        return new RealPaymentSettings(
+                properties.getWechat().getSpAppId(),
+                properties.getWechat().getSpMchid(),
+                textOrDefault(config.get("subMchid"), null));
+    }
+
+    private PaymentCapability capability(Map<String, Object> config) {
         PlatformPaymentMode platformMode = properties.platformMode();
         PaymentMode storeMode = parseStoreMode(config == null ? null : config.get("paymentMode"));
         String authorizationStatus = textOrDefault(

@@ -87,6 +87,30 @@
         DATE_FORMAT(tx.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt
     </sql>
 
+    <sql id="WechatPaymentOrderSelect">
+        id,
+        out_trade_no AS outTradeNo,
+        wechat_transaction_id AS wechatTransactionId,
+        wallet_transaction_id AS walletTransactionId,
+        store_id AS storeId,
+        member_id AS memberId,
+        recharge_amount AS rechargeAmount,
+        gift_amount AS giftAmount,
+        sp_mchid AS spMchid,
+        sub_mchid AS subMchid,
+        appid,
+        code_url AS codeUrl,
+        idempotency_key AS idempotencyKey,
+        status,
+        failure_code AS failureCode,
+        failure_message AS failureMessage,
+        expires_at AS expiresAt,
+        last_query_at AS lastQueryAt,
+        paid_at AS paidAt,
+        created_at AS createdAt,
+        updated_at AS updatedAt
+    </sql>
+
     <select id="selectStoreByAccount" resultType="map">
         SELECT <include refid="StoreColumns"/>
         FROM store_account
@@ -596,6 +620,124 @@
             #{operatorId}
         )
     </insert>
+
+    <select id="selectSuccessfulTransactionByIdempotencyKey" resultType="map">
+        SELECT <include refid="TransactionSelect"/>
+        FROM wallet_transaction tx
+        JOIN store_account s ON s.id = tx.store_id
+        LEFT JOIN store_member m ON m.id = tx.member_id
+        WHERE tx.idempotency_key = #{idempotencyKey}
+          AND tx.status = 'SUCCESS'
+        LIMIT 1
+    </select>
+
+    <insert id="insertWechatPaymentOrder" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO wechat_payment_order (
+            out_trade_no,
+            store_id,
+            member_id,
+            recharge_amount,
+            gift_amount,
+            sp_mchid,
+            sub_mchid,
+            appid,
+            idempotency_key,
+            status,
+            expires_at
+        ) VALUES (
+            #{outTradeNo},
+            #{storeId},
+            #{memberId},
+            #{rechargeAmount},
+            #{giftAmount},
+            #{spMchid},
+            #{subMchid},
+            #{appid},
+            #{idempotencyKey},
+            #{status},
+            #{expiresAt}
+        )
+    </insert>
+
+    <select id="selectWechatPaymentOrderByStore" resultType="map">
+        SELECT <include refid="WechatPaymentOrderSelect"/>
+        FROM wechat_payment_order
+        WHERE out_trade_no = #{outTradeNo}
+          AND store_id = #{storeId}
+        LIMIT 1
+    </select>
+
+    <select id="selectWechatPaymentOrderByIdempotencyKey" resultType="map">
+        SELECT <include refid="WechatPaymentOrderSelect"/>
+        FROM wechat_payment_order
+        WHERE store_id = #{storeId}
+          AND idempotency_key = #{idempotencyKey}
+        LIMIT 1
+    </select>
+
+    <select id="selectWechatPaymentOrderForUpdate" resultType="map">
+        SELECT <include refid="WechatPaymentOrderSelect"/>
+        FROM wechat_payment_order
+        WHERE out_trade_no = #{outTradeNo}
+        FOR UPDATE
+    </select>
+
+    <update id="updateWechatPaymentOrderPrepay">
+        UPDATE wechat_payment_order
+        SET code_url = #{codeUrl},
+            status = #{status}
+        WHERE out_trade_no = #{outTradeNo}
+          AND status = 'CREATED'
+    </update>
+
+    <update id="claimWechatPaymentOrderQuery">
+        UPDATE wechat_payment_order
+        SET last_query_at = #{now}
+        WHERE out_trade_no = #{outTradeNo}
+          AND store_id = #{storeId}
+          AND status = 'WAITING_PAYMENT'
+          AND (last_query_at IS NULL OR last_query_at &lt; #{queryBefore})
+    </update>
+
+    <update id="updateWechatPaymentOrderTerminal">
+        UPDATE wechat_payment_order
+        SET status = #{status},
+            wechat_transaction_id = COALESCE(#{wechatTransactionId}, wechat_transaction_id),
+            failure_code = #{failureCode},
+            failure_message = #{failureMessage},
+            paid_at = COALESCE(#{paidAt}, paid_at)
+        WHERE out_trade_no = #{outTradeNo}
+    </update>
+
+    <update id="linkWechatPaymentOrderTransaction">
+        UPDATE wechat_payment_order
+        SET wallet_transaction_id = #{walletTransactionId}
+        WHERE out_trade_no = #{outTradeNo}
+          AND (wallet_transaction_id IS NULL OR wallet_transaction_id = #{walletTransactionId})
+    </update>
+
+    <select id="selectWechatPaymentOrderByWalletTransaction" resultType="map">
+        SELECT <include refid="WechatPaymentOrderSelect"/>
+        FROM wechat_payment_order
+        WHERE wallet_transaction_id = #{walletTransactionId}
+        LIMIT 1
+    </select>
+
+    <select id="selectExpiredWechatPaymentOrders" resultType="map">
+        SELECT <include refid="WechatPaymentOrderSelect"/>
+        FROM wechat_payment_order
+        WHERE status = 'WAITING_PAYMENT'
+          AND expires_at &lt;= #{now}
+        ORDER BY id
+        LIMIT #{limit}
+    </select>
+
+    <update id="claimWechatPaymentOrderForClose">
+        UPDATE wechat_payment_order
+        SET status = 'CLOSING'
+        WHERE id = #{id}
+          AND status = 'WAITING_PAYMENT'
+    </update>
 
     <select id="selectTransactionForUpdate" resultType="map">
         SELECT tx.*

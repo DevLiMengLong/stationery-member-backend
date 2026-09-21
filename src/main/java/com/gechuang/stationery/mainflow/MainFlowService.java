@@ -299,10 +299,40 @@ public class MainFlowService {
     public Map<String, Object> recharge(Map<String, Object> store, Map<String, Object> body) {
         Long storeId = longValue(store.get("id"));
         Long memberId = longValue(body.get("memberId"));
+        String idempotencyKey = text(body.get("idempotencyKey"));
+        Map<String, Object> existing = existingRecharge(idempotencyKey, storeId, memberId);
+        if (existing != null) {
+            return existing;
+        }
+        BigDecimal amount = positiveAmount(body.get("amount"));
+        BigDecimal gift = calculateRechargeGift(storeId, amount);
+        return applyRecharge(storeId, memberId, amount, gift, idempotencyKey,
+                textOrDefault(body.get("paymentMethod"), "CASH"),
+                textOrDefault(body.get("itemName"), "会员充值"), text(body.get("remark")));
+    }
+
+    public BigDecimal calculateRechargeGift(Long storeId, BigDecimal amount) {
+        return RechargeGiftCalculator.calculate(positiveAmount(amount), tierRules(storeId));
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public Map<String, Object> applyConfirmedWechatRecharge(Long storeId, Long memberId,
+                                                            BigDecimal rechargeAmount, BigDecimal giftAmount,
+                                                            String outTradeNo) {
+        String idempotencyKey = "wechat-native:" + requiredText(outTradeNo, "微信支付单号不能为空");
+        Map<String, Object> existing = existingRecharge(idempotencyKey, storeId, memberId);
+        if (existing != null) {
+            return existing;
+        }
+        return applyRecharge(storeId, memberId, positiveAmount(rechargeAmount), nonNegativeAmount(giftAmount),
+                idempotencyKey, "WECHAT", "微信支付会员充值", null);
+    }
+
+    private Map<String, Object> applyRecharge(Long storeId, Long memberId, BigDecimal amount, BigDecimal gift,
+                                              String idempotencyKey, String paymentMethod,
+                                              String itemName, String remark) {
         mapper.selectMemberDetailForUpdate(memberId, storeId);
         Map<String, Object> wallet = mapper.selectWalletForUpdate(memberId);
-        BigDecimal amount = positiveAmount(body.get("amount"));
-        BigDecimal gift = RechargeGiftCalculator.calculate(amount, tierRules(storeId));
         WalletSnapshot before = snapshot(wallet);
         WalletSnapshot after = new WalletSnapshot(
                 before.rechargeBalance().add(amount).setScale(2, RoundingMode.HALF_UP),
@@ -315,9 +345,8 @@ public class MainFlowService {
                 intValue(wallet.get("rechargeCount"), 0) + 1,
                 intValue(wallet.get("consumptionCount"), 0));
         mapper.updateWallet(wallet);
-        Map<String, Object> transaction = insertTransaction(storeId, memberId, null, text(body.get("idempotencyKey")), "RECHARGE",
-                amount, gift, before, after, textOrDefault(body.get("paymentMethod"), "CASH"),
-                textOrDefault(body.get("itemName"), "会员充值"), text(body.get("remark")), "MERCHANT", storeId);
+        Map<String, Object> transaction = insertTransaction(storeId, memberId, null, idempotencyKey, "RECHARGE",
+                amount, gift, before, after, paymentMethod, itemName, remark, "MERCHANT", storeId);
         notificationService.notifyRechargeSucceeded(transaction);
         return transaction;
     }
@@ -356,6 +385,7 @@ public class MainFlowService {
         if (source == null || !"RECHARGE".equals(text(value(source, "type"))) || !"SUCCESS".equals(text(value(source, "status")))) {
             throw new BusinessException(ErrorCode.BIZ_409, "仅成功充值流水可撤销");
         }
+        rejectRealPaymentRecovery(transactionId);
         Long memberId = longValue(value(source, "member_id", "memberId"));
         Map<String, Object> wallet = mapper.selectWalletForUpdate(memberId);
         WalletSnapshot before = snapshot(wallet);
@@ -387,6 +417,7 @@ public class MainFlowService {
         if (source == null || !"CONSUMPTION".equals(text(value(source, "type"))) || !"SUCCESS".equals(text(value(source, "status")))) {
             throw new BusinessException(ErrorCode.BIZ_409, "仅成功扣款流水可退款");
         }
+        rejectRealPaymentRecovery(transactionId);
         BigDecimal amount = positiveAmount(refundAmount);
         Long memberId = longValue(value(source, "member_id", "memberId"));
         Map<String, Object> wallet = mapper.selectWalletForUpdate(memberId);
@@ -596,6 +627,28 @@ public class MainFlowService {
                 .toList();
     }
 
+    private Map<String, Object> existingRecharge(String idempotencyKey, Long storeId, Long memberId) {
+        if (!StringUtils.hasText(idempotencyKey)) {
+            return null;
+        }
+        Map<String, Object> existing = mapper.selectSuccessfulTransactionByIdempotencyKey(idempotencyKey);
+        if (existing == null || existing.isEmpty()) {
+            return null;
+        }
+        if (!Objects.equals(longValue(value(existing, "store_id", "storeId")), storeId)
+                || !Objects.equals(longValue(value(existing, "member_id", "memberId")), memberId)
+                || !"RECHARGE".equals(text(value(existing, "type")))) {
+            throw new BusinessException(ErrorCode.BIZ_409, "幂等键已被其他交易使用");
+        }
+        return existing;
+    }
+
+    private void rejectRealPaymentRecovery(Long transactionId) {
+        if (mapper.selectWechatPaymentOrderByWalletTransaction(transactionId) != null) {
+            throw new BusinessException(ErrorCode.BIZ_409, "真实支付流水需完成微信退款后才能撤销或退款");
+        }
+    }
+
     private boolean isIncreasing(List<Map<String, Object>> tiers) {
         BigDecimal previous = BigDecimal.ZERO;
         for (Map<String, Object> tier : tiers) {
@@ -753,6 +806,13 @@ public class MainFlowService {
     private BigDecimal positiveAmount(BigDecimal amount) {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new BusinessException(ErrorCode.VALIDATION_422, "金额必须大于 0");
+        }
+        return amount.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal nonNegativeAmount(BigDecimal amount) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_422, "赠送金额不能小于 0");
         }
         return amount.setScale(2, RoundingMode.HALF_UP);
     }

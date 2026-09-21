@@ -145,7 +145,46 @@ public interface MainFlowMapper {
 
     int insertTransaction(Map<String, Object> transaction);
 
+    Map<String, Object> selectSuccessfulTransactionByIdempotencyKey(@Param("idempotencyKey") String idempotencyKey);
+
     Map<String, Object> selectTransactionForUpdate(@Param("id") Long id, @Param("storeId") Long storeId);
+
+    int insertWechatPaymentOrder(Map<String, Object> order);
+
+    Map<String, Object> selectWechatPaymentOrderByStore(@Param("outTradeNo") String outTradeNo,
+                                                         @Param("storeId") Long storeId);
+
+    Map<String, Object> selectWechatPaymentOrderByIdempotencyKey(@Param("storeId") Long storeId,
+                                                                  @Param("idempotencyKey") String idempotencyKey);
+
+    Map<String, Object> selectWechatPaymentOrderForUpdate(@Param("outTradeNo") String outTradeNo);
+
+    int updateWechatPaymentOrderPrepay(@Param("outTradeNo") String outTradeNo,
+                                       @Param("codeUrl") String codeUrl,
+                                       @Param("status") String status);
+
+    int claimWechatPaymentOrderQuery(@Param("outTradeNo") String outTradeNo,
+                                     @Param("storeId") Long storeId,
+                                     @Param("now") LocalDateTime now,
+                                     @Param("queryBefore") LocalDateTime queryBefore);
+
+    int updateWechatPaymentOrderTerminal(@Param("outTradeNo") String outTradeNo,
+                                         @Param("status") String status,
+                                         @Param("wechatTransactionId") String wechatTransactionId,
+                                         @Param("failureCode") String failureCode,
+                                         @Param("failureMessage") String failureMessage,
+                                         @Param("paidAt") LocalDateTime paidAt);
+
+    int linkWechatPaymentOrderTransaction(@Param("outTradeNo") String outTradeNo,
+                                          @Param("walletTransactionId") Long walletTransactionId);
+
+    Map<String, Object> selectWechatPaymentOrderByWalletTransaction(
+            @Param("walletTransactionId") Long walletTransactionId);
+
+    List<Map<String, Object>> selectExpiredWechatPaymentOrders(@Param("now") LocalDateTime now,
+                                                                @Param("limit") int limit);
+
+    int claimWechatPaymentOrderForClose(@Param("id") Long id);
 
     int markTransactionReversed(@Param("id") Long id);
 
