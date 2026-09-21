@@ -35,6 +35,9 @@ management:
         include: health
 
 stationery:
+  miniprogram:
+    app-id: ${WECHAT_MINI_APP_ID:}
+    app-secret: ${WECHAT_MINI_APP_SECRET:}
   notification:
     enabled: true
     # log: only write rendered messages to backend logs.

@@ -53,11 +53,16 @@ public class MainFlowService {
         if (store == null || !Objects.equals(store.get("passwordHash"), hash(text(password)))) {
             throw new BusinessException(ErrorCode.AUTH_401, "商家账号或密码错误");
         }
-        requireActive(store);
-        Long storeId = longValue(store.get("id"));
-        mapper.updateStoreLastLogin(storeId);
-        String token = createSession("MERCHANT", storeId);
-        return new AuthResult(token, publicStore(mapper.selectStoreById(storeId)));
+        return issueMerchantSession(store);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public AuthResult loginMerchantByStoreId(Long storeId) {
+        Map<String, Object> store = mapper.selectStoreById(storeId);
+        if (store == null || store.isEmpty()) {
+            throw new BusinessException(ErrorCode.AUTH_401, ErrorCode.AUTH_401.getDefaultMessage());
+        }
+        return issueMerchantSession(store);
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -522,6 +527,14 @@ public class MainFlowService {
         mapper.insertSession(token, principalType, principalId,
                 LocalDateTime.now().plusSeconds(TOKEN_MAX_AGE_SECONDS));
         return token;
+    }
+
+    private AuthResult issueMerchantSession(Map<String, Object> store) {
+        requireActive(store);
+        Long storeId = longValue(store.get("id"));
+        mapper.updateStoreLastLogin(storeId);
+        String token = createSession("MERCHANT", storeId);
+        return new AuthResult(token, publicStore(mapper.selectStoreById(storeId)));
     }
 
     private Map<String, Object> insertTransaction(Long storeId, Long memberId, Long originalTransactionId,

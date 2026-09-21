@@ -131,6 +131,24 @@
           AND ls.expires_at > #{now}
     </select>
 
+    <select id="selectStoreByWechatOpenid" resultType="map">
+        SELECT sa.id,
+               sa.account,
+               sa.password_hash AS passwordHash,
+               sa.shop_name AS shopName,
+               sa.contact_mobile AS contactMobile,
+               sa.avatar_url AS avatarUrl,
+               sa.address,
+               sa.status,
+               DATE_FORMAT(sa.last_login_at, '%Y-%m-%d %H:%i:%s') AS lastLoginAt,
+               DATE_FORMAT(sa.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt
+        FROM store_wechat_binding swb
+        JOIN store_account sa ON sa.id = swb.store_id
+        WHERE swb.openid = #{openid}
+          AND swb.status = 'ACTIVE'
+        LIMIT 1
+    </select>
+
     <select id="selectAdminByToken" resultType="map">
         SELECT au.id,
                au.username,
@@ -150,6 +168,11 @@
     <insert id="insertSession">
         INSERT INTO login_session (token, principal_type, principal_id, expires_at)
         VALUES (#{token}, #{principalType}, #{principalId}, #{expiresAt})
+    </insert>
+
+    <insert id="insertStoreWechatBinding">
+        INSERT INTO store_wechat_binding (store_id, openid, status)
+        VALUES (#{storeId}, #{openid}, 'ACTIVE')
     </insert>
 
     <delete id="deleteSession">

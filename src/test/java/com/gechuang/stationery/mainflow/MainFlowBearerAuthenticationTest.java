@@ -82,6 +82,18 @@ class MainFlowBearerAuthenticationTest {
         verify(mapper, never()).deleteSession("merchant-token");
     }
 
+    @Test
+    void merchantSessionCanBeIssuedFromATrustedBoundStoreId() {
+        when(mapper.selectStoreById(1L)).thenReturn(activeStore());
+
+        MainFlowService.AuthResult result = service.loginMerchantByStoreId(1L);
+
+        assertThat(result.token()).hasSize(32);
+        assertThat(result.user()).containsEntry("id", 1L).doesNotContainKey("passwordHash");
+        verify(mapper).updateStoreLastLogin(1L);
+        verify(mapper).insertSession(eq(result.token()), eq("MERCHANT"), eq(1L), any());
+    }
+
     private MockHttpServletRequest requestWithAuthorization(String value) {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader(HttpHeaders.AUTHORIZATION, value);

@@ -20,12 +20,16 @@ public interface MainFlowMapper {
 
     Map<String, Object> selectStoreByToken(@Param("token") String token, @Param("now") LocalDateTime now);
 
+    Map<String, Object> selectStoreByWechatOpenid(@Param("openid") String openid);
+
     Map<String, Object> selectAdminByToken(@Param("token") String token, @Param("now") LocalDateTime now);
 
     int insertSession(@Param("token") String token,
                       @Param("principalType") String principalType,
                       @Param("principalId") Long principalId,
                       @Param("expiresAt") LocalDateTime expiresAt);
+
+    int insertStoreWechatBinding(@Param("storeId") Long storeId, @Param("openid") String openid);
 
     int deleteSession(@Param("token") String token);
 
