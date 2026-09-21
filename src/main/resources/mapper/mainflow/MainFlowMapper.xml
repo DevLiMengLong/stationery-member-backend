@@ -149,6 +149,15 @@
         LIMIT 1
     </select>
 
+    <select id="selectStoreWechatPayConfig" resultType="map">
+        SELECT payment_mode AS paymentMode,
+               sub_mchid AS subMchid,
+               authorization_status AS authorizationStatus
+        FROM store_wechat_pay_config
+        WHERE store_id = #{storeId}
+        LIMIT 1
+    </select>
+
     <select id="selectAdminByToken" resultType="map">
         SELECT au.id,
                au.username,

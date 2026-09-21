@@ -22,6 +22,8 @@ public interface MainFlowMapper {
 
     Map<String, Object> selectStoreByWechatOpenid(@Param("openid") String openid);
 
+    Map<String, Object> selectStoreWechatPayConfig(@Param("storeId") Long storeId);
+
     Map<String, Object> selectAdminByToken(@Param("token") String token, @Param("now") LocalDateTime now);
 
     int insertSession(@Param("token") String token,
