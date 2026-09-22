@@ -76,6 +76,7 @@ install_service_files() {
   local script_dir
   script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
+  usermod --append --groups stationery www-data
   install -o root -g root -m 0644 \
     "$script_dir/stationery-member-backend.service" "$UNIT_FILE"
   install -o root -g root -m 0644 \

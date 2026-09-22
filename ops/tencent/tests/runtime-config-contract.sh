@@ -34,6 +34,7 @@ assert_file_contains "$NGINX" 'try_files $uri $uri/ /index.html;'
 
 assert_file_contains "$INSTALLER" 'STATIONERY_PAYMENT_MODE=BOOKKEEPING'
 assert_file_contains "$INSTALLER" 'SERVER_ADDRESS=127.0.0.1'
+assert_file_contains "$INSTALLER" 'usermod --append --groups stationery www-data'
 assert_file_contains "$INSTALLER" "CREATE USER IF NOT EXISTS 'stationery_app'@'localhost'"
 assert_file_contains "$INSTALLER" "CREATE USER IF NOT EXISTS 'stationery_app'@'127.0.0.1'"
 # Exact source-code contract; expansion is intentionally disabled.
