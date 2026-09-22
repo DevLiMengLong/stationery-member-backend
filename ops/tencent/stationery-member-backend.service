@@ -1,0 +1,31 @@
+[Unit]
+Description=Stationery Member backend
+After=network-online.target mysql.service redis-server.service
+Wants=network-online.target
+Requires=mysql.service redis-server.service
+
+[Service]
+Type=simple
+User=stationery
+Group=stationery
+WorkingDirectory=/mnt/datadisk0/stationery-member
+EnvironmentFile=/mnt/datadisk0/stationery-member/config/backend.env
+ExecStart=/usr/bin/java -XX:MaxRAMPercentage=60 -jar /mnt/datadisk0/stationery-member/backend/current.jar
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=90
+TimeoutStopSec=30
+SuccessExitStatus=143
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=/mnt/datadisk0/stationery-member/uploads
+
+[Install]
+WantedBy=multi-user.target

@@ -1,5 +1,6 @@
 server:
-  port: 8090
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${SERVER_PORT:8090}
 
 spring:
   application:

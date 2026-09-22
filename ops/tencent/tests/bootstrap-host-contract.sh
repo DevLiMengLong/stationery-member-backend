@@ -17,6 +17,8 @@ assert_contains() {
 assert_contains '/dev/vdb'
 assert_contains '/mnt/datadisk0'
 assert_contains '== "24.04"'
+# Exact source-code contract; expansion is intentionally disabled.
+# shellcheck disable=SC2016
 assert_contains 'MIN_FREE_BYTES=$((20 * 1024 * 1024 * 1024))'
 assert_contains 'openjdk-17-jre-headless'
 assert_contains 'mysql-server'
