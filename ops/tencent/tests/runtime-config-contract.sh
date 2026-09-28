@@ -24,6 +24,7 @@ assert_file_contains "$UNIT" 'ProtectSystem=strict'
 assert_file_contains "$UNIT" 'ReadWritePaths=/mnt/datadisk0/stationery-member/uploads'
 
 assert_file_contains "$NGINX" 'listen 80 default_server;'
+assert_file_contains "$NGINX" 'server_name usepenciles.com www.usepenciles.com api.usepenciles.com;'
 assert_file_contains "$NGINX" 'root /mnt/datadisk0/stationery-member/frontend/current;'
 assert_file_contains "$NGINX" 'proxy_pass http://127.0.0.1:8090;'
 assert_file_contains "$NGINX" 'alias /mnt/datadisk0/stationery-member/uploads/;'

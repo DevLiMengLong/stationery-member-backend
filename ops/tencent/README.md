@@ -58,7 +58,7 @@ Before the first Tencent write, rollback is stopping Tencent and restarting Alib
 
 ## Current external blockers
 
-- `usepenciles.com` is not ICP-approved, so DNS/HTTPS and WeChat legal-domain configuration are pending.
+- `usepenciles.com` is ICP-approved. DNS currently has no A records; DNS/HTTPS and WeChat legal-domain configuration remain pending.
 - No service-provider or per-store special-merchant credentials are installed; production remains `BOOKKEEPING`.
 - The native miniprogram has not been uploaded or released.
 - Local data-disk backups need an off-host/COS copy.

@@ -47,6 +47,8 @@ install_packages() {
     mysql-server \
     redis-server \
     nginx \
+    certbot \
+    python3-certbot-nginx \
     rsync \
     curl \
     unzip \
