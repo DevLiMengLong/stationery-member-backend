@@ -7,6 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gechuang.stationery.common.BusinessException;
 import com.gechuang.stationery.common.ErrorCode;
 import com.gechuang.stationery.mainflow.MainFlowMapper;
@@ -114,7 +115,8 @@ class MiniProgramAuthServiceTest {
     void missingWechatSecretFailsBeforeAnyNetworkRequest() {
         MiniProgramProperties properties = new MiniProgramProperties();
         properties.setAppId("public-app-id");
-        HttpWechatCodeSessionClient client = new HttpWechatCodeSessionClient(properties, RestClient.builder());
+        HttpWechatCodeSessionClient client = new HttpWechatCodeSessionClient(
+                properties, RestClient.builder(), new ObjectMapper());
 
         assertThatThrownBy(() -> client.exchange("code"))
                 .isInstanceOfSatisfying(BusinessException.class,

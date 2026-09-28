@@ -1,6 +1,8 @@
 package com.gechuang.stationery.miniprogram;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gechuang.stationery.common.BusinessException;
 import com.gechuang.stationery.common.ErrorCode;
 import org.springframework.stereotype.Component;
@@ -15,10 +17,14 @@ public class HttpWechatCodeSessionClient implements WechatCodeSessionClient {
 
     private final MiniProgramProperties properties;
     private final RestClient restClient;
+    private final ObjectMapper objectMapper;
 
-    public HttpWechatCodeSessionClient(MiniProgramProperties properties, RestClient.Builder restClientBuilder) {
+    public HttpWechatCodeSessionClient(MiniProgramProperties properties,
+                                       RestClient.Builder restClientBuilder,
+                                       ObjectMapper objectMapper) {
         this.properties = properties;
         this.restClient = restClientBuilder.baseUrl("https://api.weixin.qq.com").build();
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -30,9 +36,9 @@ public class HttpWechatCodeSessionClient implements WechatCodeSessionClient {
             throw new BusinessException(ErrorCode.VALIDATION_422, "微信登录 code 不能为空");
         }
 
-        CodeSessionResponse response;
+        String responseBody;
         try {
-            response = restClient.get()
+            responseBody = restClient.get()
                     .uri(uriBuilder -> uriBuilder.path(CODE_SESSION_PATH)
                             .queryParam("appid", properties.getAppId())
                             .queryParam("secret", properties.getAppSecret())
@@ -40,11 +46,20 @@ public class HttpWechatCodeSessionClient implements WechatCodeSessionClient {
                             .queryParam("grant_type", "authorization_code")
                             .build())
                     .retrieve()
-                    .body(CodeSessionResponse.class);
+                    .body(String.class);
         } catch (RestClientException exception) {
             throw new BusinessException(ErrorCode.SYS_500, "微信登录服务暂时不可用");
         }
 
+        if (!StringUtils.hasText(responseBody)) {
+            throw new BusinessException(ErrorCode.SYS_500, "微信登录服务响应为空");
+        }
+        CodeSessionResponse response;
+        try {
+            response = objectMapper.readValue(responseBody, CodeSessionResponse.class);
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.SYS_500, "微信登录服务响应格式错误");
+        }
         if (response == null) {
             throw new BusinessException(ErrorCode.SYS_500, "微信登录服务响应为空");
         }
