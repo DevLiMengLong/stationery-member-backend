@@ -42,7 +42,7 @@ mvn package
 | `WECHAT_PAY_API_V3_KEY` | API v3 密钥 |
 | `WECHAT_PAY_PUBLIC_KEY_ID` | 微信支付平台公钥 ID |
 | `WECHAT_PAY_PUBLIC_KEY_PATH` | 微信支付平台公钥绝对路径 |
-| `WECHAT_PAY_NOTIFY_URL` | 公网 HTTPS 支付回调，例如 `https://api.usepenciles.com/api/payments/wechat/notify` |
+| `WECHAT_PAY_NOTIFY_URL` | 公网 HTTPS 支付回调，例如 `https://api.usepencils.com/api/payments/wechat/notify` |
 
 每个门店的 `payment_mode`、`sub_mchid` 和 `authorization_status` 存储在 `store_wechat_pay_config`，不通过全局环境变量共享。当前尚无真实商户号时，不创建 `REAL + ENABLED` 配置即可正常使用全部记账业务。
 

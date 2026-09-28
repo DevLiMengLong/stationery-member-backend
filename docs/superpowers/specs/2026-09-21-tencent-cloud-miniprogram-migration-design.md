@@ -14,7 +14,7 @@
 - 数据盘为 `/dev/vdb`，ext4 文件系统，持久挂载在 `/mnt/datadisk0`。
 - Java、MySQL、Redis、Nginx 软件包以及 systemd、Nginx 配置由 Ubuntu 管理。
 - 应用、数据库、Redis 持久化数据、上传文件、运行配置、支付证书、发布包和备份必须放在 `/mnt/datadisk0`。
-- 域名使用 `usepenciles.com`，当前尚未完成 ICP 备案。
+- 域名使用 `usepencils.com`，当前尚未完成 ICP 备案。
 - 迁移阿里云现有业务数据，允许最终切换时有 5 至 10 分钟维护窗口。
 - 每个门店未来使用独立微信支付商户号，资金独立结算。
 - 当前尚无微信支付服务商号或门店商户号，腾讯云首发必须默认采用记账模式。
@@ -182,8 +182,8 @@ Vue Web ───────────────┐
 
 ## 9. 域名和外部平台
 
-- Web 入口规划为 `https://usepenciles.com`。
-- API、小程序请求域名和微信支付回调规划为 `https://api.usepenciles.com`。
+- Web 入口规划为 `https://usepencils.com`。
+- API、小程序请求域名和微信支付回调规划为 `https://api.usepencils.com`。
 - ICP 备案和 TLS 证书完成前，只进行 IP Web 验证和微信开发者工具联调，不提交正式小程序版本。
 - 微信公众平台正式配置需要 HTTPS 合法请求域名。
 - 微信支付真实模式需要服务商号、API v3 密钥、API 证书、平台公钥或平台证书、特约商户号、产品授权及可公网访问的 HTTPS 回调地址。

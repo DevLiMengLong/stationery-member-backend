@@ -186,7 +186,7 @@ Expected: PASS; no mock runtime or secret-bearing file exists.
 
 **Interfaces:**
 - Uses: `http://101.35.96.147` for developer-tool integration before ICP/TLS.
-- Uses: `https://api.usepenciles.com` only after备案、TLS and WeChat legal-domain configuration are complete.
+- Uses: `https://api.usepencils.com` only after备案、TLS and WeChat legal-domain configuration are complete.
 - Produces: uniform unwrapping of backend `{code,message,data}` responses.
 
 - [ ] **Step 1: Write failing adapter tests**
@@ -384,7 +384,7 @@ Require `WECHAT_APPID`, `WECHAT_UPLOAD_PRIVATE_KEY`, `WECHAT_UPLOAD_VERSION`, an
 
 - [ ] **Step 2: Document developer-tool and production prerequisites**
 
-Document that IP HTTP works only for developer-tool testing with domain validation disabled. Production requires备案、TLS, `https://api.usepenciles.com` as a legal request/upload domain, a rotated upload key, and explicit release authorization.
+Document that IP HTTP works only for developer-tool testing with domain validation disabled. Production requires备案、TLS, `https://api.usepencils.com` as a legal request/upload domain, a rotated upload key, and explicit release authorization.
 
 - [ ] **Step 3: Run the full miniprogram verification**
 
