@@ -3,7 +3,10 @@ package com.gechuang.stationery.merchant;
 import com.gechuang.stationery.common.PageResult;
 import com.gechuang.stationery.common.RestResponse;
 import com.gechuang.stationery.mainflow.MainFlowService;
+import com.gechuang.stationery.miniprogram.MiniProgramAuthService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -22,9 +25,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class MerchantController {
 
     private final MainFlowService mainFlowService;
+    private final MiniProgramAuthService miniProgramAuthService;
 
-    public MerchantController(MainFlowService mainFlowService) {
+    public MerchantController(MainFlowService mainFlowService, MiniProgramAuthService miniProgramAuthService) {
         this.mainFlowService = mainFlowService;
+        this.miniProgramAuthService = miniProgramAuthService;
     }
 
     @GetMapping("/dashboard")
@@ -36,6 +41,27 @@ public class MerchantController {
     @GetMapping("/profile")
     public RestResponse<Map<String, Object>> profile(HttpServletRequest request) {
         return RestResponse.success(mainFlowService.requireMerchant(request));
+    }
+
+    @GetMapping("/wechat-bindings")
+    public RestResponse<List<Map<String, Object>>> wechatBindings(HttpServletRequest request) {
+        Map<String, Object> store = mainFlowService.requireMerchant(request);
+        return RestResponse.success(miniProgramAuthService.listWechatBindings(longValue(store.get("id"))));
+    }
+
+    @PostMapping("/wechat-bindings")
+    public RestResponse<Map<String, Object>> bindWechat(@Valid @RequestBody WechatBindingRequest body,
+                                                        HttpServletRequest request) {
+        Map<String, Object> store = mainFlowService.requireMerchant(request);
+        return RestResponse.success(miniProgramAuthService.bindWechat(
+                longValue(store.get("id")), body.code()));
+    }
+
+    @DeleteMapping("/wechat-bindings/{id}")
+    public RestResponse<Void> unbindWechat(@PathVariable Long id, HttpServletRequest request) {
+        Map<String, Object> store = mainFlowService.requireMerchant(request);
+        miniProgramAuthService.unbindWechat(longValue(store.get("id")), id);
+        return RestResponse.success();
     }
 
     @PutMapping("/profile")
@@ -168,5 +194,8 @@ public class MerchantController {
 
     private Long longValue(Object value) {
         return value == null ? null : Long.valueOf(String.valueOf(value));
+    }
+
+    public record WechatBindingRequest(@NotBlank String code) {
     }
 }

@@ -94,6 +94,29 @@ class MainFlowBearerAuthenticationTest {
         verify(mapper).insertSession(eq(result.token()), eq("MERCHANT"), eq(1L), any());
     }
 
+    @Test
+    void wechatLoginSessionIsLinkedToItsStoreBinding() {
+        when(mapper.selectStoreById(1L)).thenReturn(activeStore());
+        when(mapper.insertWechatSession(any(), eq(1L), eq(51L), any())).thenReturn(1);
+
+        MainFlowService.AuthResult result = service.loginMerchantByStoreId(1L, 51L);
+
+        assertThat(result.token()).hasSize(32);
+        verify(mapper).insertWechatSession(eq(result.token()), eq(1L), eq(51L), any());
+        verify(mapper, never()).insertSession(any(), any(), any(), any());
+    }
+
+    @Test
+    void staleOrCrossStoreWechatBindingCannotIssueASession() {
+        when(mapper.selectStoreById(1L)).thenReturn(activeStore());
+        when(mapper.insertWechatSession(any(), eq(1L), eq(99L), any())).thenReturn(0);
+
+        assertThatThrownBy(() -> service.loginMerchantByStoreId(1L, 99L))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        error -> assertThat(error.getErrorCode().getCode()).isEqualTo("BIZ_409"));
+        verify(mapper, never()).insertSession(any(), any(), any(), any());
+    }
+
     private MockHttpServletRequest requestWithAuthorization(String value) {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader(HttpHeaders.AUTHORIZATION, value);

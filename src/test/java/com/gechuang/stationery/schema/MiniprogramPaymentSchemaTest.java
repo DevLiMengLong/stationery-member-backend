@@ -10,6 +10,8 @@ class MiniprogramPaymentSchemaTest {
 
     private static final Path MIGRATION = Path.of(
             "src/main/resources/db/migration/20260921_01_miniprogram_payment.sql");
+    private static final Path WECHAT_SESSION_MIGRATION = Path.of(
+            "src/main/resources/db/migration/20260930_01_store_wechat_sessions.sql");
     private static final Path FRESH_SCHEMA = Path.of("src/main/resources/db/init/01-schema.sql");
 
     @Test
@@ -42,5 +44,22 @@ class MiniprogramPaymentSchemaTest {
                 .contains("CREATE TABLE IF NOT EXISTS store_wechat_binding")
                 .contains("CREATE TABLE IF NOT EXISTS store_wechat_pay_config")
                 .contains("CREATE TABLE IF NOT EXISTS wechat_payment_order");
+    }
+
+    @Test
+    void wechatSessionsAreLinkedToTheirBindingForImmediateRevocation() throws Exception {
+        assertThat(WECHAT_SESSION_MIGRATION).exists();
+        String migration = Files.readString(WECHAT_SESSION_MIGRATION);
+        String freshSchema = Files.readString(FRESH_SCHEMA);
+
+        assertThat(migration)
+                .contains("ADD COLUMN wechat_binding_id BIGINT DEFAULT NULL")
+                .contains("KEY idx_login_session_wechat_binding (wechat_binding_id)")
+                .contains("CONSTRAINT fk_login_session_wechat_binding")
+                .contains("ON DELETE CASCADE");
+        assertThat(freshSchema)
+                .contains("wechat_binding_id BIGINT DEFAULT NULL")
+                .contains("CONSTRAINT fk_login_session_wechat_binding")
+                .contains("ON DELETE CASCADE");
     }
 }

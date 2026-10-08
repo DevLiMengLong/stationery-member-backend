@@ -2,7 +2,9 @@ package com.gechuang.stationery.notification;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
+import com.gechuang.stationery.mainflow.MainFlowMapper;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -15,8 +17,12 @@ class MemberNotificationServiceTest {
         AtomicReference<MemberNotificationMessage> captured = new AtomicReference<>();
         MemberNotificationService service = new MemberNotificationService(
                 new MemberNotificationMessageFactory(),
-                captured::set,
-                properties
+                message -> {
+                    captured.set(message);
+                    return true;
+                },
+                properties,
+                new SmsQuotaService(mock(MainFlowMapper.class))
         );
 
         service.notifyMemberCreated(
@@ -36,7 +42,8 @@ class MemberNotificationServiceTest {
                 message -> {
                     throw new IllegalStateException("provider unavailable");
                 },
-                properties
+                properties,
+                new SmsQuotaService(mock(MainFlowMapper.class))
         );
 
         assertThatCode(() -> service.notifyMemberCreated(

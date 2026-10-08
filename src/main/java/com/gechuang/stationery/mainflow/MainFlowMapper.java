@@ -12,6 +12,62 @@ public interface MainFlowMapper {
 
     Map<String, Object> selectStoreByAccount(@Param("account") String account);
 
+    Long lockStoreLoginMobile(@Param("mobile") String mobile);
+
+    List<Map<String, Object>> selectStoresByLoginMobile(@Param("mobile") String mobile,
+                                                        @Param("now") LocalDateTime now);
+
+    List<Map<String, Object>> selectStoresByLoginMobileAndPassword(@Param("mobile") String mobile,
+                                                                   @Param("passwordHash") String passwordHash,
+                                                                   @Param("now") LocalDateTime now);
+
+    Map<String, Object> selectStoreByLoginMobile(@Param("mobile") String mobile,
+                                                 @Param("storeId") Long storeId,
+                                                 @Param("now") LocalDateTime now);
+
+    List<String> selectStoreLoginMobiles(@Param("storeId") Long storeId);
+
+    int deleteStoreLoginMobiles(@Param("storeId") Long storeId);
+
+    int insertStoreLoginMobiles(@Param("storeId") Long storeId, @Param("mobiles") List<String> mobiles);
+
+    int countRecentVerificationCodes(@Param("mobile") String mobile,
+                                     @Param("scene") String scene,
+                                     @Param("since") LocalDateTime since);
+
+    int supersedeUnusedVerificationCodes(@Param("mobile") String mobile, @Param("scene") String scene);
+
+    int insertVerificationCode(@Param("mobile") String mobile,
+                              @Param("scene") String scene,
+                              @Param("code") String code,
+                              @Param("expiresAt") LocalDateTime expiresAt);
+
+    Map<String, Object> selectLatestVerificationCodeForUpdate(@Param("mobile") String mobile,
+                                                              @Param("scene") String scene);
+
+    int incrementVerificationCodeAttempts(@Param("id") Long id);
+
+    int markVerificationCodeUsed(@Param("id") Long id);
+
+    int markVerificationCodeExpired(@Param("id") Long id);
+
+    int lockVerificationCode(@Param("id") Long id);
+
+    int insertMerchantLoginChallenge(@Param("token") String token,
+                                     @Param("mobile") String mobile,
+                                     @Param("expiresAt") LocalDateTime expiresAt);
+
+    int insertMerchantPasswordLoginChallenge(@Param("token") String token,
+                                             @Param("mobile") String mobile,
+                                             @Param("expiresAt") LocalDateTime expiresAt);
+
+    Map<String, Object> selectMerchantLoginChallengeForUpdate(@Param("token") String token,
+                                                              @Param("now") LocalDateTime now);
+
+    int deleteMerchantLoginChallenge(@Param("id") Long id);
+
+    int deleteExpiredMerchantLoginChallenges(@Param("now") LocalDateTime now);
+
     Map<String, Object> selectStoreById(@Param("id") Long id);
 
     Map<String, Object> selectAdminByUsername(@Param("username") String username);
@@ -22,6 +78,8 @@ public interface MainFlowMapper {
 
     Map<String, Object> selectStoreByWechatOpenid(@Param("openid") String openid);
 
+    List<Map<String, Object>> selectStoreWechatBindings(@Param("storeId") Long storeId);
+
     Map<String, Object> selectStoreWechatPayConfig(@Param("storeId") Long storeId);
 
     Map<String, Object> selectAdminByToken(@Param("token") String token, @Param("now") LocalDateTime now);
@@ -31,7 +89,14 @@ public interface MainFlowMapper {
                       @Param("principalId") Long principalId,
                       @Param("expiresAt") LocalDateTime expiresAt);
 
+    int insertWechatSession(@Param("token") String token,
+                            @Param("principalId") Long principalId,
+                            @Param("bindingId") Long bindingId,
+                            @Param("expiresAt") LocalDateTime expiresAt);
+
     int insertStoreWechatBinding(@Param("storeId") Long storeId, @Param("openid") String openid);
+
+    int deleteStoreWechatBinding(@Param("storeId") Long storeId, @Param("bindingId") Long bindingId);
 
     int deleteSession(@Param("token") String token);
 
@@ -46,7 +111,8 @@ public interface MainFlowMapper {
     Map<String, Object> selectMerchantDashboard(@Param("storeId") Long storeId,
                                                 @Param("todayStart") LocalDateTime todayStart,
                                                 @Param("tomorrowStart") LocalDateTime tomorrowStart,
-                                                @Param("weekStart") LocalDateTime weekStart);
+                                                @Param("weekStart") LocalDateTime weekStart,
+                                                @Param("monthStart") LocalDateTime monthStart);
 
     List<Map<String, Object>> selectRechargeTiers(@Param("storeId") Long storeId);
 
@@ -67,6 +133,12 @@ public interface MainFlowMapper {
     int insertStore(Map<String, Object> store);
 
     int updateStore(Map<String, Object> store);
+
+    int updateStoreSmsQuota(@Param("id") Long id, @Param("smsQuota") int smsQuota);
+
+    int tryConsumeSmsQuota(@Param("storeId") Long storeId);
+
+    int restoreSmsQuota(@Param("storeId") Long storeId);
 
     int updateStoreStatus(@Param("id") Long id, @Param("status") String status);
 
@@ -116,6 +188,16 @@ public interface MainFlowMapper {
                                                            @Param("keyword") String keyword);
 
     Map<String, Object> selectMemberByMobile(@Param("storeId") Long storeId, @Param("mobile") String mobile);
+
+    List<String> selectVisibleMemberMobiles(@Param("storeId") Long storeId,
+                                            @Param("mobiles") List<String> mobiles);
+
+    int insertImportedMembers(@Param("members") List<Map<String, Object>> members);
+
+    List<Map<String, Object>> selectMemberIdsByMobiles(@Param("storeId") Long storeId,
+                                                        @Param("mobiles") List<String> mobiles);
+
+    int insertWallets(@Param("memberIds") List<Long> memberIds);
 
     int insertMember(Map<String, Object> member);
 

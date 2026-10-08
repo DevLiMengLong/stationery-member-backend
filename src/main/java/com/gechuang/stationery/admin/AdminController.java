@@ -4,11 +4,13 @@ import com.gechuang.stationery.common.BusinessException;
 import com.gechuang.stationery.common.ErrorCode;
 import com.gechuang.stationery.common.PageResult;
 import com.gechuang.stationery.common.RestResponse;
+import com.gechuang.stationery.mainflow.MemberImportResult;
 import com.gechuang.stationery.mainflow.MainFlowService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -23,11 +25,16 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/admin")
 public class AdminController {
+
+    private static final byte[] MEMBER_IMPORT_TEMPLATE = ("\uFEFF手机号,姓名,性别,年龄\r\n")
+            .getBytes(StandardCharsets.UTF_8);
 
     private final MainFlowService mainFlowService;
 
@@ -64,6 +71,20 @@ public class AdminController {
                                                          HttpServletRequest request) {
         mainFlowService.requireAdmin(request);
         return RestResponse.success(mainFlowService.updateStore(id, body));
+    }
+
+    @GetMapping("/stores/{id}/login-mobiles")
+    public RestResponse<List<String>> storeLoginMobiles(@PathVariable Long id, HttpServletRequest request) {
+        mainFlowService.requireAdmin(request);
+        return RestResponse.success(mainFlowService.storeLoginMobiles(id));
+    }
+
+    @PatchMapping("/stores/{id}/sms-quota")
+    public RestResponse<Map<String, Object>> updateStoreSmsQuota(@PathVariable Long id,
+                                                                 @RequestBody Map<String, Object> body,
+                                                                 HttpServletRequest request) {
+        mainFlowService.requireAdmin(request);
+        return RestResponse.success(mainFlowService.setStoreSmsQuota(id, body.get("smsQuota")));
     }
 
     @PatchMapping("/stores/{id}/status")
@@ -120,6 +141,31 @@ public class AdminController {
                         ContentDisposition.attachment().filename("members.csv", StandardCharsets.UTF_8).build().toString())
                 .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
                 .body(bytes);
+    }
+
+    @GetMapping("/members/import-template")
+    public ResponseEntity<byte[]> memberImportTemplate(HttpServletRequest request) {
+        mainFlowService.requireAdmin(request);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename("members-import-template.csv", StandardCharsets.UTF_8).build().toString())
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .body(MEMBER_IMPORT_TEMPLATE);
+    }
+
+    @PostMapping(value = "/members/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public RestResponse<MemberImportResult> importMembers(@RequestParam Long storeId,
+                                                          @RequestPart("file") MultipartFile file,
+                                                          HttpServletRequest request) throws java.io.IOException {
+        mainFlowService.requireAdmin(request);
+        String filename = file.getOriginalFilename();
+        if (filename == null || !filename.toLowerCase(Locale.ROOT).endsWith(".csv")) {
+            throw new BusinessException(ErrorCode.VALIDATION_422, "仅支持 CSV 文件");
+        }
+        if (file.isEmpty()) {
+            throw new BusinessException(ErrorCode.VALIDATION_422, "请选择非空 CSV 文件");
+        }
+        return RestResponse.success(mainFlowService.importAdminMembers(storeId, file.getBytes()));
     }
 
     @GetMapping("/members/{id}")

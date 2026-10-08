@@ -120,6 +120,7 @@ public class MemberNotificationProperties {
         private String memberCreatedTemplateId;
         private String rechargeTemplateId;
         private String consumptionTemplateId;
+        private String merchantLoginTemplateId;
 
         public String getEndpoint() {
             return endpoint;
@@ -192,6 +193,14 @@ public class MemberNotificationProperties {
         public void setConsumptionTemplateId(String consumptionTemplateId) {
             this.consumptionTemplateId = consumptionTemplateId;
         }
+
+        public String getMerchantLoginTemplateId() {
+            return merchantLoginTemplateId;
+        }
+
+        public void setMerchantLoginTemplateId(String merchantLoginTemplateId) {
+            this.merchantLoginTemplateId = merchantLoginTemplateId;
+        }
     }
 
     public static class AliyunSms {
@@ -200,9 +209,11 @@ public class MemberNotificationProperties {
         private String memberCreatedTemplateCode;
         private String rechargeTemplateCode;
         private String consumptionTemplateCode;
+        private String merchantLoginTemplateCode;
         private String memberCreatedParamNames = "business_code,member_code";
         private String rechargeParamNames = "business_code,input,input_gift";
         private String consumptionParamNames = "business_code,output,left";
+        private String merchantLoginParamNames = "code,minutes";
 
         public String getEndpoint() {
             return endpoint;
@@ -244,6 +255,14 @@ public class MemberNotificationProperties {
             this.consumptionTemplateCode = consumptionTemplateCode;
         }
 
+        public String getMerchantLoginTemplateCode() {
+            return merchantLoginTemplateCode;
+        }
+
+        public void setMerchantLoginTemplateCode(String merchantLoginTemplateCode) {
+            this.merchantLoginTemplateCode = merchantLoginTemplateCode;
+        }
+
         public String getMemberCreatedParamNames() {
             return memberCreatedParamNames;
         }
@@ -266,6 +285,14 @@ public class MemberNotificationProperties {
 
         public void setConsumptionParamNames(String consumptionParamNames) {
             this.consumptionParamNames = consumptionParamNames;
+        }
+
+        public String getMerchantLoginParamNames() {
+            return merchantLoginParamNames;
+        }
+
+        public void setMerchantLoginParamNames(String merchantLoginParamNames) {
+            this.merchantLoginParamNames = merchantLoginParamNames;
         }
     }
 }

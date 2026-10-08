@@ -22,7 +22,10 @@ CREATE TABLE IF NOT EXISTS store_account (
   contact_mobile VARCHAR(20) NOT NULL,
   avatar_url VARCHAR(255) DEFAULT NULL,
   address VARCHAR(255) DEFAULT NULL,
+  nearby_schools TEXT NULL COMMENT 'nearby school names, one per line',
   status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+  expires_at DATETIME DEFAULT NULL COMMENT 'merchant account expiration time',
+  sms_quota INT NOT NULL DEFAULT 0 COMMENT 'available SMS notification count',
   last_login_at DATETIME DEFAULT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -31,6 +34,17 @@ CREATE TABLE IF NOT EXISTS store_account (
   KEY idx_store_account_status (status),
   KEY idx_store_account_mobile (contact_mobile)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='merchant store accounts';
+
+CREATE TABLE IF NOT EXISTS store_login_mobile (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  store_id BIGINT NOT NULL,
+  mobile VARCHAR(20) NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_store_login_mobile_store_mobile (store_id, mobile),
+  KEY idx_store_login_mobile_mobile (mobile),
+  CONSTRAINT fk_store_login_mobile_store FOREIGN KEY (store_id) REFERENCES store_account (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='merchant login mobile bindings';
 
 CREATE TABLE IF NOT EXISTS store_member (
   id BIGINT NOT NULL AUTO_INCREMENT,
@@ -195,23 +209,40 @@ CREATE TABLE IF NOT EXISTS verification_code (
   id BIGINT NOT NULL AUTO_INCREMENT,
   mobile VARCHAR(20) NOT NULL,
   scene VARCHAR(32) NOT NULL,
-  code VARCHAR(16) NOT NULL,
+  code CHAR(64) NOT NULL COMMENT 'HMAC-SHA256 digest for one-time login codes',
   status VARCHAR(16) NOT NULL DEFAULT 'UNUSED',
+  attempt_count INT NOT NULL DEFAULT 0,
   expires_at DATETIME NOT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_verification_code_mobile_scene (mobile, scene, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='mock sms verification codes';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='short-lived verification codes';
+
+CREATE TABLE IF NOT EXISTS merchant_login_challenge (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  token VARCHAR(64) NOT NULL,
+  mobile VARCHAR(20) NOT NULL,
+  auth_method VARCHAR(16) NOT NULL DEFAULT 'SMS',
+  expires_at DATETIME NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_merchant_login_challenge_token (token),
+  KEY idx_merchant_login_challenge_expires (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='short-lived verified mobile store-selection challenges';
 
 CREATE TABLE IF NOT EXISTS login_session (
   token VARCHAR(128) NOT NULL,
   principal_type VARCHAR(16) NOT NULL,
   principal_id BIGINT NOT NULL,
+  wechat_binding_id BIGINT DEFAULT NULL,
   expires_at DATETIME NOT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (token),
   KEY idx_login_session_principal (principal_type, principal_id),
-  KEY idx_login_session_expires (expires_at)
+  KEY idx_login_session_expires (expires_at),
+  KEY idx_login_session_wechat_binding (wechat_binding_id),
+  CONSTRAINT fk_login_session_wechat_binding FOREIGN KEY (wechat_binding_id)
+    REFERENCES store_wechat_binding (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='cookie login sessions';
 
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -240,6 +271,12 @@ VALUES
   (3, 'west_store', '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92', '悦享生活馆·西城店', '13800138012', '北京市西城区金融大街12号', 'ACTIVE'),
   (4, 'closed_store', '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92', '悦享生活馆·朝阳门店', '13800138013', '北京市东城区朝阳门内大街18号', 'DISABLED')
 ON DUPLICATE KEY UPDATE updated_at = CURRENT_TIMESTAMP;
+
+INSERT IGNORE INTO store_login_mobile (store_id, mobile)
+SELECT id, contact_mobile
+FROM store_account
+WHERE contact_mobile REGEXP '^1[3-9][0-9]{9}$'
+  AND contact_mobile != '13800000000';
 
 INSERT INTO recharge_tier (store_id, tier_no, recharge_amount, gift_amount)
 VALUES

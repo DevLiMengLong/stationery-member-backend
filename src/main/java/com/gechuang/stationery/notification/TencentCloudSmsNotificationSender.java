@@ -53,16 +53,16 @@ public class TencentCloudSmsNotificationSender implements MemberNotificationSend
     }
 
     @Override
-    public void send(MemberNotificationMessage message) {
+    public boolean send(MemberNotificationMessage message) {
         if (!StringUtils.hasText(message.recipientMobile())) {
             LOGGER.info("Skip SMS notification [{}] because member mobile is empty", message.type());
-            return;
+            return false;
         }
         MemberNotificationProperties.TencentSms sms = properties.getTencentSms();
         String templateId = templateId(sms, message.type());
         if (!StringUtils.hasText(templateId)) {
             LOGGER.info("Skip SMS notification [{}] because Tencent SMS template id is empty", message.type());
-            return;
+            return false;
         }
         validateConfig(sms);
 
@@ -84,6 +84,7 @@ public class TencentCloudSmsNotificationSender implements MemberNotificationSend
         if (!success(body)) {
             throw new IllegalStateException("Tencent Cloud SMS failed: " + body);
         }
+        return true;
     }
 
     private void validateConfig(MemberNotificationProperties.TencentSms sms) {
@@ -177,6 +178,7 @@ public class TencentCloudSmsNotificationSender implements MemberNotificationSend
             case MEMBER_CREATED -> sms.getMemberCreatedTemplateId();
             case RECHARGE_SUCCEEDED -> sms.getRechargeTemplateId();
             case CONSUMPTION_SUCCEEDED -> sms.getConsumptionTemplateId();
+            case MERCHANT_LOGIN_CODE -> sms.getMerchantLoginTemplateId();
         };
     }
 
