@@ -12,8 +12,9 @@ public class LoggingMemberNotificationSender implements MemberNotificationSender
     private static final Logger LOGGER = LoggerFactory.getLogger(LoggingMemberNotificationSender.class);
 
     @Override
-    public void send(MemberNotificationMessage message) {
+    public boolean send(MemberNotificationMessage message) {
         LOGGER.info("Member notification [{}] to mobile [{}]: {}",
                 message.type(), message.recipientMobile(), message.content());
+        return true;
     }
 }

@@ -35,15 +35,15 @@ public class WechatOfficialAccountNotificationSender implements MemberNotificati
     }
 
     @Override
-    public void send(MemberNotificationMessage message) {
+    public boolean send(MemberNotificationMessage message) {
         if (!StringUtils.hasText(message.recipientOpenid())) {
             LOGGER.info("Skip WeChat notification [{}] because member openid is empty", message.type());
-            return;
+            return false;
         }
         String templateId = templateId(message.type());
         if (!StringUtils.hasText(templateId)) {
             LOGGER.info("Skip WeChat notification [{}] because template id is empty", message.type());
-            return;
+            return false;
         }
 
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -60,6 +60,7 @@ public class WechatOfficialAccountNotificationSender implements MemberNotificati
         if (!success(response)) {
             throw new IllegalStateException("WeChat template message failed: " + response);
         }
+        return true;
     }
 
     private String accessToken() {
@@ -97,6 +98,7 @@ public class WechatOfficialAccountNotificationSender implements MemberNotificati
             case MEMBER_CREATED -> wechat.getMemberCreatedTemplateId();
             case RECHARGE_SUCCEEDED -> wechat.getRechargeTemplateId();
             case CONSUMPTION_SUCCEEDED -> wechat.getConsumptionTemplateId();
+            case MERCHANT_LOGIN_CODE -> null;
         };
     }
 

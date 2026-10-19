@@ -12,17 +12,25 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +45,10 @@ public class MainFlowService {
 
     private static final DateTimeFormatter MEMBER_NO_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
     private static final DateTimeFormatter SERIAL_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
+    private static final int MAX_MEMBER_IMPORT_ROWS = 5000;
+    private static final int MAX_MEMBER_IMPORT_BYTES = 2 * 1024 * 1024;
+    private static final int MAX_MEMBER_IMPORT_ERROR_DETAILS = 100;
+    private static final List<String> MEMBER_IMPORT_HEADERS = List.of("手机号", "姓名", "性别", "年龄");
 
     private final MainFlowMapper mapper;
     private final MemberNotificationService notificationService;
@@ -53,10 +65,73 @@ public class MainFlowService {
             throw new BusinessException(ErrorCode.AUTH_401, "商家账号或密码错误");
         }
         requireActive(store);
+        requireStoreNotExpired(store);
         Long storeId = longValue(store.get("id"));
         mapper.updateStoreLastLogin(storeId);
         String token = createSession("MERCHANT", storeId);
         return new AuthResult(token, publicStore(mapper.selectStoreById(storeId)));
+    }
+
+    public List<Map<String, Object>> merchantStoresByMobile(String mobile) {
+        String normalizedMobile = text(mobile);
+        if (!validMobile(normalizedMobile)) {
+            throw new BusinessException(ErrorCode.VALIDATION_422, "手机号格式不正确");
+        }
+        return mapper.selectStoresByLoginMobile(normalizedMobile, LocalDateTime.now());
+    }
+
+    public List<Map<String, Object>> merchantStoresByMobileAndPassword(String mobile, String password) {
+        String normalizedMobile = text(mobile);
+        String normalizedPassword = text(password);
+        if (!validMobile(normalizedMobile)) {
+            throw new BusinessException(ErrorCode.VALIDATION_422, "手机号格式不正确");
+        }
+        if (!StringUtils.hasText(normalizedPassword)) {
+            throw new BusinessException(ErrorCode.AUTH_401, "手机号或密码错误");
+        }
+        return mapper.selectStoresByLoginMobileAndPassword(normalizedMobile, hash(normalizedPassword),
+                LocalDateTime.now());
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public AuthResult loginMerchantByMobile(String mobile, Long storeId) {
+        String normalizedMobile = text(mobile);
+        if (!validMobile(normalizedMobile)) {
+            throw new BusinessException(ErrorCode.AUTH_401, "手机号或验证码错误，请重新获取验证码");
+        }
+        Map<String, Object> store = mapper.selectStoreByLoginMobile(normalizedMobile, storeId, LocalDateTime.now());
+        if (store == null) {
+            throw new BusinessException(ErrorCode.AUTH_401, "手机号或验证码错误，请重新获取验证码");
+        }
+        requireActive(store);
+        requireStoreNotExpired(store);
+        Long selectedStoreId = longValue(store.get("id"));
+        mapper.updateStoreLastLogin(selectedStoreId);
+        String token = createSession("MERCHANT", selectedStoreId);
+        Map<String, Object> user = publicStore(mapper.selectStoreById(selectedStoreId));
+        user.put("id", String.valueOf(selectedStoreId));
+        return new AuthResult(token, user);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public AuthResult loginMerchantByMobileAndPassword(String mobile, Long storeId, String password) {
+        String normalizedMobile = text(mobile);
+        String normalizedPassword = text(password);
+        if (!validMobile(normalizedMobile) || !StringUtils.hasText(normalizedPassword)) {
+            throw new BusinessException(ErrorCode.AUTH_401, "手机号或密码错误");
+        }
+        Map<String, Object> store = mapper.selectStoreByLoginMobile(normalizedMobile, storeId, LocalDateTime.now());
+        if (store == null || !Objects.equals(store.get("passwordHash"), hash(normalizedPassword))) {
+            throw new BusinessException(ErrorCode.AUTH_401, "手机号或密码错误");
+        }
+        requireActive(store);
+        requireStoreNotExpired(store);
+        Long selectedStoreId = longValue(store.get("id"));
+        mapper.updateStoreLastLogin(selectedStoreId);
+        String token = createSession("MERCHANT", selectedStoreId);
+        Map<String, Object> user = publicStore(mapper.selectStoreById(selectedStoreId));
+        user.put("id", String.valueOf(selectedStoreId));
+        return new AuthResult(token, user);
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -79,6 +154,7 @@ public class MainFlowService {
             throw new BusinessException(ErrorCode.AUTH_401, ErrorCode.AUTH_401.getDefaultMessage());
         }
         requireActive(store);
+        requireStoreNotExpired(store);
         return publicStore(store);
     }
 
@@ -101,8 +177,9 @@ public class MainFlowService {
         LocalDateTime todayStart = today.atStartOfDay();
         LocalDateTime tomorrowStart = today.plusDays(1).atStartOfDay();
         LocalDateTime weekStart = today.minusDays(today.getDayOfWeek().getValue() - 1L).atStartOfDay();
+        LocalDateTime monthStart = today.withDayOfMonth(1).atStartOfDay();
         Map<String, Object> row = mapper.selectMerchantDashboard(longValue(store.get("id")), todayStart,
-                tomorrowStart, weekStart);
+                tomorrowStart, weekStart, monthStart);
         Map<String, Object> result = publicStore(row);
         result.put("updatedAt", row.get("updatedAt"));
         result.put("memberCount", row.get("memberCount"));
@@ -118,6 +195,11 @@ public class MainFlowService {
                 "newMembers", row.get("weekNewMembers"),
                 "consumptionAmount", money(row.get("weekConsumptionAmount")),
                 "rechargeAmount", money(row.get("weekRechargeAmount"))
+        ));
+        result.put("month", Map.of(
+                "newMembers", row.get("monthNewMembers"),
+                "consumptionAmount", money(row.get("monthConsumptionAmount")),
+                "rechargeAmount", money(row.get("monthRechargeAmount"))
         ));
         return result;
     }
@@ -334,7 +416,7 @@ public class MainFlowService {
                 intValue(wallet.get("consumptionCount"), 0) + 1);
         mapper.updateWallet(wallet);
         Map<String, Object> transaction = insertTransaction(storeId, memberId, null, text(body.get("idempotencyKey")), "CONSUMPTION",
-                amount, BigDecimal.ZERO.setScale(2), before, after, textOrDefault(body.get("paymentMethod"), "CASH"),
+                amount, BigDecimal.ZERO.setScale(2), before, after, "BALANCE",
                 textOrDefault(body.get("itemName"), "消费扣款"), text(body.get("remark")), "MERCHANT", storeId);
         notificationService.notifyConsumptionSucceeded(transaction);
         return transaction;
@@ -445,15 +527,28 @@ public class MainFlowService {
         store.put("account", account);
         store.put("passwordHash", hash(textOrDefault(body.get("initialPassword"), "123456")));
         store.put("shopName", textOrDefault(body.get("shopName"), account));
-        store.put("contactMobile", textOrDefault(body.get("contactMobile"), "13800000000"));
+        String providedContactMobile = text(body.get("contactMobile"));
+        List<String> loginMobiles = body.get("loginMobiles") == null && !StringUtils.hasText(providedContactMobile)
+                ? List.of()
+                : loginMobiles(body.get("loginMobiles"), providedContactMobile);
+        String contactMobile = textOrDefault(providedContactMobile,
+                loginMobiles.isEmpty() ? "13800000000" : loginMobiles.get(0));
+        store.put("contactMobile", contactMobile);
         store.put("avatarUrl", text(body.get("avatarUrl")));
         store.put("address", text(body.get("address")));
+        store.put("nearbySchools", text(body.get("nearbySchools")));
         store.put("status", textOrDefault(body.get("status"), "ACTIVE"));
+        store.put("smsQuota", nonNegativeInteger(body.get("smsQuota"), 0));
+        store.put("expiresAt", parseStoreExpiration(body.get("expiresAt")));
         mapper.insertStore(store);
+        if (!loginMobiles.isEmpty()) {
+            mapper.insertStoreLoginMobiles(longValue(store.get("id")), loginMobiles);
+        }
         mapper.insertDefaultRechargeTiers(longValue(store.get("id")));
         return publicStore(mapper.selectStoreById(longValue(store.get("id"))));
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> updateStore(Long id, Map<String, Object> body) {
         Map<String, Object> existing = mapper.selectStoreById(id);
         if (existing == null) {
@@ -465,8 +560,40 @@ public class MainFlowService {
         store.put("contactMobile", textOrDefault(body.get("contactMobile"), text(existing.get("contactMobile"))));
         store.put("avatarUrl", textOrDefault(body.get("avatarUrl"), text(existing.get("avatarUrl"))));
         store.put("address", textOrDefault(body.get("address"), text(existing.get("address"))));
+        Object nearbySchools = body.containsKey("nearbySchools")
+                ? body.get("nearbySchools")
+                : existing.get("nearbySchools");
+        store.put("nearbySchools", text(nearbySchools));
         store.put("status", textOrDefault(body.get("status"), text(existing.get("status"))));
+        Object expiresAt = body.containsKey("expiresAt") ? body.get("expiresAt") : existing.get("expiresAt");
+        store.put("expiresAt", parseStoreExpiration(expiresAt));
+        List<String> loginMobiles = body.containsKey("loginMobiles")
+                ? loginMobiles(body.get("loginMobiles"), null)
+                : null;
         mapper.updateStore(store);
+        if (loginMobiles != null) {
+            mapper.deleteStoreLoginMobiles(id);
+            mapper.insertStoreLoginMobiles(id, loginMobiles);
+        }
+        return publicStore(mapper.selectStoreById(id));
+    }
+
+    public List<String> storeLoginMobiles(Long id) {
+        if (mapper.selectStoreById(id) == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_404, "门店不存在");
+        }
+        return mapper.selectStoreLoginMobiles(id);
+    }
+
+    public Map<String, Object> setStoreSmsQuota(Long id, Object value) {
+        if (value == null || !StringUtils.hasText(String.valueOf(value))) {
+            throw new BusinessException(ErrorCode.VALIDATION_422, "短信数量必须为非负整数");
+        }
+        int smsQuota = nonNegativeInteger(value, 0);
+        if (mapper.selectStoreById(id) == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_404, "门店不存在");
+        }
+        mapper.updateStoreSmsQuota(id, smsQuota);
         return publicStore(mapper.selectStoreById(id));
     }
 
@@ -503,6 +630,171 @@ public class MainFlowService {
                                                            BigDecimal consumptionMin, BigDecimal consumptionMax) {
         return mapper.selectAdminMembersForExport(mobile, name, storeId, rechargeMin, rechargeMax,
                 consumptionMin, consumptionMax, 5001);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public MemberImportResult importAdminMembers(Long storeId, byte[] csvBytes) {
+        if (storeId == null || mapper.selectStoreById(storeId) == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_404, "门店不存在");
+        }
+        if (csvBytes == null || csvBytes.length == 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_422, "请选择非空 CSV 文件");
+        }
+        if (csvBytes.length > MAX_MEMBER_IMPORT_BYTES) {
+            throw new BusinessException(ErrorCode.VALIDATION_422, "文件不能超过 2MB");
+        }
+
+        String csv;
+        try {
+            csv = StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(csvBytes))
+                    .toString();
+        } catch (CharacterCodingException exception) {
+            throw new BusinessException(ErrorCode.VALIDATION_422, "文件必须使用 UTF-8 编码");
+        }
+        if (!csv.isEmpty() && csv.charAt(0) == '\uFEFF') {
+            csv = csv.substring(1);
+        }
+
+        List<List<String>> records;
+        try {
+            records = MemberCsvParser.parse(csv);
+        } catch (IllegalArgumentException exception) {
+            throw new BusinessException(ErrorCode.VALIDATION_422, exception.getMessage());
+        }
+        if (records.isEmpty() || !MEMBER_IMPORT_HEADERS.equals(records.get(0).stream().map(String::trim).toList())) {
+            throw new BusinessException(ErrorCode.VALIDATION_422, "模板表头应为：手机号,姓名,性别,年龄");
+        }
+
+        int totalRows = 0;
+        List<MemberImportResult.RowError> errors = new ArrayList<>();
+        List<ImportedMemberRow> validRows = new ArrayList<>();
+        Set<String> requestedMobiles = new LinkedHashSet<>();
+        for (int recordIndex = 1; recordIndex < records.size(); recordIndex++) {
+            List<String> record = records.get(recordIndex);
+            if (record.stream().allMatch(value -> !StringUtils.hasText(value))) {
+                continue;
+            }
+            totalRows++;
+            if (totalRows > MAX_MEMBER_IMPORT_ROWS) {
+                throw new BusinessException(ErrorCode.VALIDATION_422, "单次最多导入 5000 条会员");
+            }
+
+            int rowNumber = recordIndex + 1;
+            String mobile = cell(record, 0);
+            if (record.size() != MEMBER_IMPORT_HEADERS.size()) {
+                addImportError(errors, rowNumber, mobile, "列数应为 4 列");
+                continue;
+            }
+            String name = cell(record, 1);
+            String gender = normalizeImportGender(cell(record, 2));
+            String ageText = cell(record, 3);
+            String validationError = validateImportedMember(mobile, name, gender, ageText);
+            if (validationError != null) {
+                addImportError(errors, rowNumber, mobile, validationError);
+                continue;
+            }
+            int age = Integer.parseInt(ageText);
+            requestedMobiles.add(mobile);
+            validRows.add(new ImportedMemberRow(rowNumber, mobile, name, gender, age));
+        }
+        if (totalRows == 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_422, "文件中没有可导入的数据");
+        }
+
+        Set<String> takenMobiles = requestedMobiles.isEmpty()
+                ? new HashSet<>()
+                : new HashSet<>(mapper.selectVisibleMemberMobiles(storeId, List.copyOf(requestedMobiles)));
+        List<ImportedMemberRow> acceptedRows = new ArrayList<>();
+        for (ImportedMemberRow row : validRows) {
+            if (!takenMobiles.add(row.mobile())) {
+                addImportError(errors, row.rowNumber(), row.mobile(), "手机号已存在");
+            } else {
+                acceptedRows.add(row);
+            }
+        }
+
+        if (!acceptedRows.isEmpty()) {
+            List<Map<String, Object>> membersToInsert = new ArrayList<>(acceptedRows.size());
+            for (ImportedMemberRow row : acceptedRows) {
+                Map<String, Object> member = new LinkedHashMap<>();
+                member.put("storeId", storeId);
+                member.put("memberNo", "M" + LocalDateTime.now().format(MEMBER_NO_TIME)
+                        + row.mobile().substring(row.mobile().length() - 4)
+                        + UUID.randomUUID().toString().replace("-", "").substring(0, 8));
+                member.put("name", row.name());
+                member.put("mobile", row.mobile());
+                member.put("gender", row.gender());
+                member.put("age", row.age());
+                membersToInsert.add(member);
+            }
+            mapper.insertImportedMembers(membersToInsert);
+            List<String> acceptedMobiles = acceptedRows.stream().map(ImportedMemberRow::mobile).toList();
+            List<Map<String, Object>> insertedMembers = mapper.selectMemberIdsByMobiles(storeId, acceptedMobiles);
+            if (insertedMembers == null || insertedMembers.size() != acceptedRows.size()) {
+                throw new BusinessException(ErrorCode.BIZ_409, "会员导入结果校验失败，请重试");
+            }
+            List<Long> memberIds = insertedMembers.stream().map(row -> longValue(row.get("id"))).toList();
+            if (mapper.insertWallets(memberIds) != memberIds.size()) {
+                throw new BusinessException(ErrorCode.BIZ_409, "会员账户初始化失败，请重试");
+            }
+        }
+
+        int failedCount = totalRows - acceptedRows.size();
+        return new MemberImportResult(totalRows, acceptedRows.size(), failedCount, List.copyOf(errors),
+                errors.size() < failedCount);
+    }
+
+    private String validateImportedMember(String mobile, String name, String gender, String ageText) {
+        if (!validMobile(mobile)) {
+            return "手机号格式不正确";
+        }
+        if (!StringUtils.hasText(name)) {
+            return "姓名不能为空";
+        }
+        if (name.length() > 64) {
+            return "姓名不能超过 64 个字符";
+        }
+        if (gender == null) {
+            return "性别请填写男或女";
+        }
+        try {
+            int age = Integer.parseInt(ageText);
+            if (age < 0 || age > 150) {
+                return "年龄应为 0-150 的整数";
+            }
+        } catch (NumberFormatException exception) {
+            return "年龄应为 0-150 的整数";
+        }
+        return null;
+    }
+
+    private String normalizeImportGender(String gender) {
+        if (List.of("男", "MALE", "M").contains(gender.toUpperCase(Locale.ROOT))) {
+            return "MALE";
+        }
+        if (List.of("女", "FEMALE", "F").contains(gender.toUpperCase(Locale.ROOT))) {
+            return "FEMALE";
+        }
+        return null;
+    }
+
+    private String cell(List<String> record, int index) {
+        return index < record.size() ? record.get(index).trim() : "";
+    }
+
+    private void addImportError(List<MemberImportResult.RowError> errors,
+                                int rowNumber,
+                                String mobile,
+                                String message) {
+        if (errors.size() < MAX_MEMBER_IMPORT_ERROR_DETAILS) {
+            errors.add(new MemberImportResult.RowError(rowNumber, mobile, message));
+        }
+    }
+
+    private record ImportedMemberRow(int rowNumber, String mobile, String name, String gender, int age) {
     }
 
     public List<Map<String, Object>> activityRows() {
@@ -633,6 +925,28 @@ public class MainFlowService {
         }
     }
 
+    private void requireStoreNotExpired(Map<String, Object> store) {
+        LocalDateTime expiresAt = parseStoreExpiration(store.get("expiresAt"));
+        if (expiresAt != null && !expiresAt.isAfter(LocalDateTime.now())) {
+            throw new BusinessException(ErrorCode.AUTH_423, "账号已过期，请联系管理员续期");
+        }
+    }
+
+    private LocalDateTime parseStoreExpiration(Object value) {
+        if (value == null || !StringUtils.hasText(String.valueOf(value))) {
+            return null;
+        }
+        if (value instanceof LocalDateTime dateTime) {
+            return dateTime;
+        }
+        String text = String.valueOf(value).trim().replace(' ', 'T');
+        try {
+            return LocalDateTime.parse(text);
+        } catch (DateTimeParseException exception) {
+            throw new BusinessException(ErrorCode.VALIDATION_422, "账号有效期格式不正确");
+        }
+    }
+
     private String tokenFromCookie(HttpServletRequest request, String name) {
         if (request.getCookies() == null) {
             return "";
@@ -657,6 +971,36 @@ public class MainFlowService {
             throw new BusinessException(ErrorCode.VALIDATION_422, message);
         }
         return result;
+    }
+
+    private List<String> loginMobiles(Object value, String fallback) {
+        Object source = value;
+        if (source == null && StringUtils.hasText(fallback)) {
+            source = List.of(fallback);
+        }
+        if (source == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_422, "请至少绑定一个登录手机号");
+        }
+        if (!(source instanceof List<?> values)) {
+            throw new BusinessException(ErrorCode.VALIDATION_422, "登录手机号必须为列表");
+        }
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        for (Object item : values) {
+            String mobile = text(item);
+            if (!StringUtils.hasText(mobile)) {
+                continue;
+            }
+            if (!validMobile(mobile)) {
+                throw new BusinessException(ErrorCode.VALIDATION_422, "登录手机号格式不正确");
+            }
+            if (!normalized.add(mobile)) {
+                throw new BusinessException(ErrorCode.VALIDATION_422, "登录手机号不能重复");
+            }
+        }
+        if (normalized.isEmpty()) {
+            throw new BusinessException(ErrorCode.VALIDATION_422, "请至少绑定一个登录手机号");
+        }
+        return new ArrayList<>(normalized);
     }
 
     private void validatePassword(String password) {
@@ -703,6 +1047,21 @@ public class MainFlowService {
             return number.intValue();
         }
         return Integer.parseInt(String.valueOf(value));
+    }
+
+    private int nonNegativeInteger(Object value, int fallback) {
+        if (value == null || !StringUtils.hasText(String.valueOf(value))) {
+            return fallback;
+        }
+        try {
+            int count = new BigDecimal(String.valueOf(value)).intValueExact();
+            if (count >= 0) {
+                return count;
+            }
+        } catch (NumberFormatException | ArithmeticException ignored) {
+            // Report a consistent validation error for non-integer and out-of-range inputs.
+        }
+        throw new BusinessException(ErrorCode.VALIDATION_422, "短信数量必须为非负整数");
     }
 
     private Object value(Map<String, Object> source, String... keys) {

@@ -15,7 +15,10 @@
         contact_mobile AS contactMobile,
         avatar_url AS avatarUrl,
         address,
+        nearby_schools AS nearbySchools,
         status,
+        DATE_FORMAT(expires_at, '%Y-%m-%d %H:%i:%s') AS expiresAt,
+        sms_quota AS smsQuota,
         DATE_FORMAT(last_login_at, '%Y-%m-%d %H:%i:%s') AS lastLoginAt,
         DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS createdAt
     </sql>
@@ -94,6 +97,179 @@
         LIMIT 1
     </select>
 
+    <select id="lockStoreLoginMobile" resultType="long">
+        SELECT store_id
+        FROM store_login_mobile
+        WHERE mobile = #{mobile}
+        ORDER BY store_id
+        LIMIT 1
+        FOR UPDATE
+    </select>
+
+    <select id="selectStoresByLoginMobile" resultType="map">
+        SELECT CAST(sa.id AS CHAR) AS id,
+               sa.account,
+               sa.shop_name AS shopName,
+               sa.contact_mobile AS contactMobile,
+               sa.address
+        FROM store_login_mobile slm
+        JOIN store_account sa ON sa.id = slm.store_id
+        WHERE slm.mobile = #{mobile}
+          AND sa.status = 'ACTIVE'
+          AND (sa.expires_at IS NULL OR sa.expires_at &gt; #{now})
+        ORDER BY sa.shop_name, sa.id
+    </select>
+
+    <select id="selectStoresByLoginMobileAndPassword" resultType="map">
+        SELECT CAST(sa.id AS CHAR) AS id,
+               sa.account,
+               sa.shop_name AS shopName,
+               sa.contact_mobile AS contactMobile,
+               sa.address
+        FROM store_login_mobile slm
+        JOIN store_account sa ON sa.id = slm.store_id
+        WHERE slm.mobile = #{mobile}
+          AND sa.password_hash = #{passwordHash}
+          AND sa.status = 'ACTIVE'
+          AND (sa.expires_at IS NULL OR sa.expires_at &gt; #{now})
+        ORDER BY sa.shop_name, sa.id
+    </select>
+
+    <select id="selectStoreByLoginMobile" resultType="map">
+        SELECT sa.id,
+               sa.account,
+               sa.password_hash AS passwordHash,
+               sa.shop_name AS shopName,
+               sa.contact_mobile AS contactMobile,
+               sa.avatar_url AS avatarUrl,
+               sa.address,
+               sa.status,
+               DATE_FORMAT(sa.expires_at, '%Y-%m-%d %H:%i:%s') AS expiresAt,
+               sa.sms_quota AS smsQuota,
+               DATE_FORMAT(sa.last_login_at, '%Y-%m-%d %H:%i:%s') AS lastLoginAt,
+               DATE_FORMAT(sa.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt
+        FROM store_login_mobile slm
+        JOIN store_account sa ON sa.id = slm.store_id
+        WHERE slm.mobile = #{mobile}
+          AND sa.id = #{storeId}
+          AND sa.status = 'ACTIVE'
+          AND (sa.expires_at IS NULL OR sa.expires_at &gt; #{now})
+        LIMIT 1
+    </select>
+
+    <select id="selectStoreLoginMobiles" resultType="string">
+        SELECT mobile
+        FROM store_login_mobile
+        WHERE store_id = #{storeId}
+        ORDER BY created_at, mobile
+    </select>
+
+    <delete id="deleteStoreLoginMobiles">
+        DELETE FROM store_login_mobile
+        WHERE store_id = #{storeId}
+    </delete>
+
+    <insert id="insertStoreLoginMobiles">
+        INSERT INTO store_login_mobile (store_id, mobile)
+        VALUES
+        <foreach collection="mobiles" item="mobile" separator=",">
+            (#{storeId}, #{mobile})
+        </foreach>
+    </insert>
+
+    <select id="countRecentVerificationCodes" resultType="int">
+        SELECT COUNT(*)
+        FROM verification_code
+        WHERE mobile = #{mobile}
+          AND scene = #{scene}
+          AND created_at &gt;= #{since}
+    </select>
+
+    <update id="supersedeUnusedVerificationCodes">
+        UPDATE verification_code
+        SET status = 'SUPERSEDED'
+        WHERE mobile = #{mobile}
+          AND scene = #{scene}
+          AND status = 'UNUSED'
+    </update>
+
+    <insert id="insertVerificationCode">
+        INSERT INTO verification_code (mobile, scene, code, status, attempt_count, expires_at)
+        VALUES (#{mobile}, #{scene}, #{code}, 'UNUSED', 0, #{expiresAt})
+    </insert>
+
+    <select id="selectLatestVerificationCodeForUpdate" resultType="map">
+        SELECT id,
+               code,
+               status,
+               attempt_count AS attemptCount,
+               expires_at AS expiresAt
+        FROM verification_code
+        WHERE mobile = #{mobile}
+          AND scene = #{scene}
+        ORDER BY id DESC
+        LIMIT 1
+        FOR UPDATE
+    </select>
+
+    <update id="incrementVerificationCodeAttempts">
+        UPDATE verification_code
+        SET attempt_count = attempt_count + 1
+        WHERE id = #{id}
+          AND status = 'UNUSED'
+          AND attempt_count &lt; 5
+    </update>
+
+    <update id="markVerificationCodeUsed">
+        UPDATE verification_code
+        SET status = 'USED'
+        WHERE id = #{id}
+          AND status = 'UNUSED'
+          AND expires_at &gt; CURRENT_TIMESTAMP
+    </update>
+
+    <update id="markVerificationCodeExpired">
+        UPDATE verification_code
+        SET status = 'EXPIRED'
+        WHERE id = #{id}
+          AND status = 'UNUSED'
+    </update>
+
+    <update id="lockVerificationCode">
+        UPDATE verification_code
+        SET status = 'LOCKED'
+        WHERE id = #{id}
+          AND status = 'UNUSED'
+    </update>
+
+    <insert id="insertMerchantLoginChallenge">
+        INSERT INTO merchant_login_challenge (token, mobile, expires_at)
+        VALUES (#{token}, #{mobile}, #{expiresAt})
+    </insert>
+
+    <insert id="insertMerchantPasswordLoginChallenge">
+        INSERT INTO merchant_login_challenge (token, mobile, auth_method, expires_at)
+        VALUES (#{token}, #{mobile}, 'PASSWORD', #{expiresAt})
+    </insert>
+
+    <select id="selectMerchantLoginChallengeForUpdate" resultType="map">
+        SELECT id, mobile, auth_method AS authMethod
+        FROM merchant_login_challenge
+        WHERE token = #{token}
+          AND expires_at &gt; #{now}
+        FOR UPDATE
+    </select>
+
+    <delete id="deleteMerchantLoginChallenge">
+        DELETE FROM merchant_login_challenge
+        WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteExpiredMerchantLoginChallenges">
+        DELETE FROM merchant_login_challenge
+        WHERE expires_at &lt;= #{now}
+    </delete>
+
     <select id="selectStoreById" resultType="map">
         SELECT <include refid="StoreColumns"/>
         FROM store_account
@@ -122,6 +298,8 @@
                sa.avatar_url AS avatarUrl,
                sa.address,
                sa.status,
+               DATE_FORMAT(sa.expires_at, '%Y-%m-%d %H:%i:%s') AS expiresAt,
+               sa.sms_quota AS smsQuota,
                DATE_FORMAT(sa.last_login_at, '%Y-%m-%d %H:%i:%s') AS lastLoginAt,
                DATE_FORMAT(sa.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt
         FROM login_session ls
@@ -185,6 +363,7 @@
             sa.contact_mobile AS contactMobile,
             sa.avatar_url AS avatarUrl,
             sa.address,
+            sa.nearby_schools AS nearbySchools,
             sa.status,
             DATE_FORMAT(sa.last_login_at, '%Y-%m-%d %H:%i:%s') AS lastLoginAt,
             DATE_FORMAT(sa.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt,
@@ -203,6 +382,8 @@
             sa.avatar_url AS avatarUrl,
             sa.address,
             sa.status,
+            DATE_FORMAT(sa.expires_at, '%Y-%m-%d %H:%i:%s') AS expiresAt,
+            sa.sms_quota AS smsQuota,
             DATE_FORMAT(sa.last_login_at, '%Y-%m-%d %H:%i:%s') AS lastLoginAt,
             DATE_FORMAT(sa.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt,
             DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s') AS updatedAt,
@@ -215,7 +396,10 @@
             <include refid="Money"><property name="expr" value="(SELECT SUM(amount) FROM wallet_transaction WHERE store_id = sa.id AND type = 'RECHARGE' AND status = 'SUCCESS' AND created_at &gt;= #{todayStart} AND created_at &lt; #{tomorrowStart})"/></include> AS todayRechargeAmount,
             (SELECT COUNT(*) FROM store_member m WHERE m.store_id = sa.id AND m.created_at &gt;= #{weekStart} AND m.created_at &lt; #{tomorrowStart}) AS weekNewMembers,
             <include refid="Money"><property name="expr" value="(SELECT SUM(amount) FROM wallet_transaction WHERE store_id = sa.id AND type = 'CONSUMPTION' AND status = 'SUCCESS' AND created_at &gt;= #{weekStart} AND created_at &lt; #{tomorrowStart})"/></include> AS weekConsumptionAmount,
-            <include refid="Money"><property name="expr" value="(SELECT SUM(amount) FROM wallet_transaction WHERE store_id = sa.id AND type = 'RECHARGE' AND status = 'SUCCESS' AND created_at &gt;= #{weekStart} AND created_at &lt; #{tomorrowStart})"/></include> AS weekRechargeAmount
+            <include refid="Money"><property name="expr" value="(SELECT SUM(amount) FROM wallet_transaction WHERE store_id = sa.id AND type = 'RECHARGE' AND status = 'SUCCESS' AND created_at &gt;= #{weekStart} AND created_at &lt; #{tomorrowStart})"/></include> AS weekRechargeAmount,
+            (SELECT COUNT(*) FROM store_member m WHERE m.store_id = sa.id AND m.created_at &gt;= #{monthStart} AND m.created_at &lt; #{tomorrowStart}) AS monthNewMembers,
+            <include refid="Money"><property name="expr" value="(SELECT SUM(amount) FROM wallet_transaction WHERE store_id = sa.id AND type = 'CONSUMPTION' AND status = 'SUCCESS' AND created_at &gt;= #{monthStart} AND created_at &lt; #{tomorrowStart})"/></include> AS monthConsumptionAmount,
+            <include refid="Money"><property name="expr" value="(SELECT SUM(amount) FROM wallet_transaction WHERE store_id = sa.id AND type = 'RECHARGE' AND status = 'SUCCESS' AND created_at &gt;= #{monthStart} AND created_at &lt; #{tomorrowStart})"/></include> AS monthRechargeAmount
         FROM store_account sa
         WHERE sa.id = #{storeId}
     </select>
@@ -280,8 +464,8 @@
     </select>
 
     <insert id="insertStore" parameterType="map" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO store_account (account, password_hash, shop_name, contact_mobile, avatar_url, address, status)
-        VALUES (#{account}, #{passwordHash}, #{shopName}, #{contactMobile}, #{avatarUrl}, #{address}, #{status})
+        INSERT INTO store_account (account, password_hash, shop_name, contact_mobile, avatar_url, address, nearby_schools, status, sms_quota, expires_at)
+        VALUES (#{account}, #{passwordHash}, #{shopName}, #{contactMobile}, #{avatarUrl}, #{address}, #{nearbySchools}, #{status}, #{smsQuota}, #{expiresAt})
     </insert>
 
     <update id="updateStore" parameterType="map">
@@ -290,8 +474,30 @@
             contact_mobile = #{contactMobile},
             avatar_url = #{avatarUrl},
             address = #{address},
-            status = #{status}
+            nearby_schools = #{nearbySchools},
+            status = #{status},
+            expires_at = #{expiresAt}
         WHERE id = #{id}
+    </update>
+
+    <update id="updateStoreSmsQuota">
+        UPDATE store_account
+        SET sms_quota = #{smsQuota}
+        WHERE id = #{id}
+    </update>
+
+    <update id="tryConsumeSmsQuota">
+        UPDATE store_account
+        SET sms_quota = sms_quota - 1
+        WHERE id = #{storeId}
+          AND sms_quota > 0
+    </update>
+
+    <update id="restoreSmsQuota">
+        UPDATE store_account
+        SET sms_quota = sms_quota + 1
+        WHERE id = #{storeId}
+          AND sms_quota &lt; 2147483647
     </update>
 
     <update id="updateStoreStatus">
@@ -424,6 +630,47 @@
           AND m.mobile = #{mobile}
         LIMIT 1
     </select>
+
+    <select id="selectVisibleMemberMobiles" resultType="string">
+        SELECT mobile
+        FROM store_member
+        WHERE store_id = #{storeId}
+          AND deleted_at IS NULL
+          AND status != 'DELETED'
+          AND mobile IN
+        <foreach collection="mobiles" item="mobile" open="(" separator="," close=")">
+            #{mobile}
+        </foreach>
+    </select>
+
+    <insert id="insertImportedMembers" parameterType="map">
+        INSERT INTO store_member (store_id, member_no, name, mobile, gender, age, status)
+        VALUES
+        <foreach collection="members" item="member" separator=",">
+            (#{member.storeId}, #{member.memberNo}, #{member.name}, #{member.mobile},
+             #{member.gender}, #{member.age}, 'ACTIVE')
+        </foreach>
+    </insert>
+
+    <select id="selectMemberIdsByMobiles" resultType="map">
+        SELECT id, mobile
+        FROM store_member
+        WHERE store_id = #{storeId}
+          AND status = 'ACTIVE'
+          AND deleted_at IS NULL
+          AND mobile IN
+        <foreach collection="mobiles" item="mobile" open="(" separator="," close=")">
+            #{mobile}
+        </foreach>
+    </select>
+
+    <insert id="insertWallets" parameterType="map">
+        INSERT INTO member_wallet (member_id)
+        VALUES
+        <foreach collection="memberIds" item="memberId" separator=",">
+            (#{memberId})
+        </foreach>
+    </insert>
 
     <insert id="insertMember" parameterType="map" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO store_member (store_id, member_no, name, mobile, gender, age, avatar_url, status)

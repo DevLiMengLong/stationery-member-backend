@@ -18,17 +18,24 @@ public class MemberNotificationService {
     private final MemberNotificationMessageFactory messageFactory;
     private final MemberNotificationSender sender;
     private final MemberNotificationProperties properties;
+    private final SmsQuotaService smsQuotaService;
 
     public MemberNotificationService(MemberNotificationMessageFactory messageFactory,
                                      MemberNotificationSender sender,
-                                     MemberNotificationProperties properties) {
+                                     MemberNotificationProperties properties,
+                                     SmsQuotaService smsQuotaService) {
         this.messageFactory = messageFactory;
         this.sender = sender;
         this.properties = properties;
+        this.smsQuotaService = smsQuotaService;
     }
 
     public void notifyMemberCreated(Map<String, Object> store, Map<String, Object> member) {
-        send(messageFactory.memberCreated(
+        Long storeId = longValue(value(member, "storeId", "store_id"));
+        if (storeId == null) {
+            storeId = longValue(value(store, "storeId", "store_id", "id"));
+        }
+        send(storeId, messageFactory.memberCreated(
                 text(value(store, "shopName", "storeName")),
                 text(value(member, "mobile")),
                 text(value(member, "memberNo", "memberCode", "member_code")),
@@ -37,15 +44,19 @@ public class MemberNotificationService {
     }
 
     public void notifyMemberCreated(String storeName, String mobile) {
-        notifyMemberCreated(storeName, null, mobile);
+        notifyMemberCreated(null, storeName, null, mobile);
     }
 
     public void notifyMemberCreated(String storeName, String memberNo, String mobile) {
-        send(messageFactory.memberCreated(storeName, mobile, memberNo, null));
+        notifyMemberCreated(null, storeName, memberNo, mobile);
+    }
+
+    public void notifyMemberCreated(Long storeId, String storeName, String memberNo, String mobile) {
+        send(storeId, messageFactory.memberCreated(storeName, mobile, memberNo, null));
     }
 
     public void notifyRechargeSucceeded(Map<String, Object> transaction) {
-        send(messageFactory.rechargeSucceeded(
+        send(longValue(value(transaction, "storeId", "store_id")), messageFactory.rechargeSucceeded(
                 text(value(transaction, "storeName", "shopName")),
                 text(value(transaction, "mobile")),
                 text(value(transaction, "wechatOpenid", "openId", "openid")),
@@ -56,7 +67,7 @@ public class MemberNotificationService {
     }
 
     public void notifyConsumptionSucceeded(Map<String, Object> transaction) {
-        send(messageFactory.consumptionSucceeded(
+        send(longValue(value(transaction, "storeId", "store_id")), messageFactory.consumptionSucceeded(
                 text(value(transaction, "storeName", "shopName")),
                 text(value(transaction, "mobile")),
                 text(value(transaction, "wechatOpenid", "openId", "openid")),
@@ -65,31 +76,74 @@ public class MemberNotificationService {
         ));
     }
 
-    private void send(MemberNotificationMessage message) {
+    private void send(Long storeId, MemberNotificationMessage message) {
         if (!properties.isEnabled()) {
             return;
         }
-        MemberNotificationMessage deliverableMessage = withConfiguredOpenid(message);
+        MemberNotificationMessage deliverableMessage = withConfiguredOpenid(withStoreId(message, storeId));
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    sendSafely(deliverableMessage);
+                    sendSafely(storeId, deliverableMessage);
                 }
             });
             return;
         }
-        sendSafely(deliverableMessage);
+        sendSafely(storeId, deliverableMessage);
     }
 
-    private void sendSafely(MemberNotificationMessage message) {
+    private void sendSafely(Long storeId, MemberNotificationMessage message) {
+        boolean reserved = false;
+        if (isSmsChannel()) {
+            try {
+                reserved = smsQuotaService.reserve(storeId);
+            } catch (RuntimeException exception) {
+                LOGGER.warn("Could not reserve SMS quota for store [{}]: {}", storeId, exception.getMessage());
+                LOGGER.debug("SMS quota reservation failure detail", exception);
+                return;
+            }
+            if (!reserved) {
+                LOGGER.info("Skip SMS notification [{}] because store [{}] has no available SMS quota",
+                        message.type(), storeId);
+                return;
+            }
+        }
+
+        boolean sent;
         try {
-            sender.send(message);
+            sent = sender.send(message);
         } catch (RuntimeException exception) {
             LOGGER.warn("Member notification [{}] failed for mobile [{}]: {}",
                     message.type(), message.recipientMobile(), exception.getMessage());
             LOGGER.debug("Member notification failure detail", exception);
+            sent = false;
         }
+        if (reserved && !sent) {
+            try {
+                smsQuotaService.release(storeId);
+            } catch (RuntimeException exception) {
+                LOGGER.warn("Could not release SMS quota for store [{}]: {}", storeId, exception.getMessage());
+                LOGGER.debug("SMS quota release failure detail", exception);
+            }
+        }
+    }
+
+    private boolean isSmsChannel() {
+        String channel = properties.getChannel();
+        return "tencent-cloud-sms".equalsIgnoreCase(channel) || "aliyun-sms".equalsIgnoreCase(channel);
+    }
+
+    private MemberNotificationMessage withStoreId(MemberNotificationMessage message, Long storeId) {
+        return new MemberNotificationMessage(
+                message.type(),
+                message.recipientMobile(),
+                message.recipientOpenid(),
+                message.content(),
+                message.templateData(),
+                message.smsTemplateParams(),
+                storeId
+        );
     }
 
     private MemberNotificationMessage withConfiguredOpenid(MemberNotificationMessage message) {
@@ -106,7 +160,8 @@ public class MemberNotificationService {
                 openid,
                 message.content(),
                 message.templateData(),
-                message.smsTemplateParams()
+                message.smsTemplateParams(),
+                message.storeId()
         );
     }
 
@@ -125,6 +180,13 @@ public class MemberNotificationService {
     private String text(Object value) {
         String result = value == null ? null : String.valueOf(value).trim();
         return StringUtils.hasText(result) ? result : null;
+    }
+
+    private Long longValue(Object value) {
+        if (value == null || !StringUtils.hasText(String.valueOf(value))) {
+            return null;
+        }
+        return value instanceof Number number ? number.longValue() : Long.valueOf(String.valueOf(value));
     }
 
     private BigDecimal decimal(Object value) {

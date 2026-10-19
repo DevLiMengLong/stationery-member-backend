@@ -41,6 +41,6 @@ class MemberServiceNotificationTest {
 
         service.createMember(request);
 
-        verify(notificationService).notifyMemberCreated("晨光文具店", "M202609190073", "13800000073");
+        verify(notificationService).notifyMemberCreated(1L, "晨光文具店", "M202609190073", "13800000073");
     }
 }

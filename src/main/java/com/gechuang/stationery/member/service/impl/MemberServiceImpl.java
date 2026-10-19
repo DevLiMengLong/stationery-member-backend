@@ -55,7 +55,7 @@ public class MemberServiceImpl implements MemberService {
         memberMapper.insert(member);
         memberMapper.upsertWalletPoints(member.getId(), normalizePoints(request.getPoints()));
         MemberVO created = MemberVO.fromEntity(memberMapper.selectById(member.getId()));
-        notificationService.notifyMemberCreated(
+        notificationService.notifyMemberCreated(DEFAULT_STORE_ID,
                 memberMapper.selectStoreNameById(DEFAULT_STORE_ID), created.getMemberNo(), created.getMobile());
         return created;
     }

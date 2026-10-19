@@ -1,5 +1,6 @@
 package com.gechuang.stationery.mainflow;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
@@ -99,6 +100,35 @@ class MainFlowServiceNotificationTest {
         ));
 
         verify(notificationService).notifyConsumptionSucceeded(anyMap());
+    }
+
+    @Test
+    void consumeShouldAlwaysRecordBalanceAndAllowMissingItemName() {
+        Map<String, Object> store = Map.of("id", 1L);
+        Map<String, Object> wallet = wallet();
+        Map<String, Object> savedTransaction = new LinkedHashMap<>();
+        when(mapper.selectMemberDetailForUpdate(99L, 1L)).thenReturn(Map.of("id", 99L));
+        when(mapper.selectWalletForUpdate(99L)).thenReturn(wallet);
+        doAnswer(invocation -> {
+            Map<String, Object> transaction = invocation.getArgument(0);
+            savedTransaction.putAll(transaction);
+            transaction.put("id", 12L);
+            return 1;
+        }).when(mapper).insertTransaction(anyMap());
+        when(mapper.selectMemberDetail(eq(99L), any())).thenReturn(Map.of(
+                "storeName", "晨光文具店",
+                "name", "测试会员",
+                "mobile", "13800000073"
+        ));
+
+        service.consume(store, Map.of(
+                "memberId", 99L,
+                "amount", "10.00",
+                "paymentMethod", "WECHAT"
+        ));
+
+        assertThat(savedTransaction.get("paymentMethod")).isEqualTo("BALANCE");
+        assertThat(savedTransaction.get("itemName")).isEqualTo("消费扣款");
     }
 
     private Map<String, Object> wallet() {

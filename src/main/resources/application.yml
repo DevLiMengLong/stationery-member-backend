@@ -18,7 +18,7 @@ spring:
   servlet:
     multipart:
       max-file-size: 2MB
-      max-request-size: 2MB
+      max-request-size: 3MB
   profiles:
     active: local
 
@@ -59,6 +59,7 @@ stationery:
       member-created-template-id: ${TENCENT_SMS_MEMBER_CREATED_TEMPLATE_ID:}
       recharge-template-id: ${TENCENT_SMS_RECHARGE_TEMPLATE_ID:}
       consumption-template-id: ${TENCENT_SMS_CONSUMPTION_TEMPLATE_ID:}
+      merchant-login-template-id: ${TENCENT_SMS_MERCHANT_LOGIN_TEMPLATE_ID:}
     aliyun-sms:
       endpoint: ${ALIYUN_SMS_ENDPOINT:dysmsapi.aliyuncs.com}
       sign-name: ${ALIYUN_SMS_SIGN_NAME:}
@@ -68,3 +69,7 @@ stationery:
       member-created-param-names: ${ALIYUN_SMS_MEMBER_CREATED_PARAM_NAMES:business_code,member_code}
       recharge-param-names: ${ALIYUN_SMS_RECHARGE_PARAM_NAMES:business_code,input,input_gift}
       consumption-param-names: ${ALIYUN_SMS_CONSUMPTION_PARAM_NAMES:business_code,output,left}
+      merchant-login-template-code: ${ALIYUN_SMS_MERCHANT_LOGIN_TEMPLATE_CODE:}
+      merchant-login-param-names: ${ALIYUN_SMS_MERCHANT_LOGIN_PARAM_NAMES:code,minutes}
+  auth:
+    code-hmac-key: ${STATIONERY_AUTH_CODE_HMAC_KEY:}

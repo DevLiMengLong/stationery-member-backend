@@ -44,17 +44,17 @@ public class AliyunSmsNotificationSender implements MemberNotificationSender {
     }
 
     @Override
-    public void send(MemberNotificationMessage message) {
+    public boolean send(MemberNotificationMessage message) {
         if (!StringUtils.hasText(message.recipientMobile())) {
             LOGGER.info("Skip Alibaba Cloud SMS notification [{}] because member mobile is empty", message.type());
-            return;
+            return false;
         }
 
         MemberNotificationProperties.AliyunSms sms = properties.getAliyunSms();
         String templateCode = templateCode(sms, message.type());
         if (!StringUtils.hasText(templateCode)) {
             LOGGER.info("Skip Alibaba Cloud SMS notification [{}] because template code is empty", message.type());
-            return;
+            return false;
         }
         if (!StringUtils.hasText(sms.getSignName())) {
             throw new IllegalStateException("Alibaba Cloud SMS sign name is empty");
@@ -72,6 +72,7 @@ public class AliyunSmsNotificationSender implements MemberNotificationSender {
                 String detail = body == null ? "empty response" : body.getMessage();
                 throw new IllegalStateException("Alibaba Cloud SMS failed: " + detail);
             }
+            return true;
         } catch (IllegalStateException exception) {
             throw exception;
         } catch (Exception exception) {
@@ -109,6 +110,7 @@ public class AliyunSmsNotificationSender implements MemberNotificationSender {
             case MEMBER_CREATED -> sms.getMemberCreatedTemplateCode();
             case RECHARGE_SUCCEEDED -> sms.getRechargeTemplateCode();
             case CONSUMPTION_SUCCEEDED -> sms.getConsumptionTemplateCode();
+            case MERCHANT_LOGIN_CODE -> sms.getMerchantLoginTemplateCode();
         };
     }
 
@@ -139,6 +141,7 @@ public class AliyunSmsNotificationSender implements MemberNotificationSender {
             case MEMBER_CREATED -> sms.getMemberCreatedParamNames();
             case RECHARGE_SUCCEEDED -> sms.getRechargeParamNames();
             case CONSUMPTION_SUCCEEDED -> sms.getConsumptionParamNames();
+            case MERCHANT_LOGIN_CODE -> sms.getMerchantLoginParamNames();
         };
         if (!StringUtils.hasText(configured)) {
             return List.of();

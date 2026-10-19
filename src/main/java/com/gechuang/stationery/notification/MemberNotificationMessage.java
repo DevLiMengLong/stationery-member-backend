@@ -9,14 +9,24 @@ public record MemberNotificationMessage(
         String recipientOpenid,
         String content,
         Map<String, String> templateData,
-        List<String> smsTemplateParams
+        List<String> smsTemplateParams,
+        Long storeId
 ) {
     public MemberNotificationMessage(MemberNotificationType type,
                                      String recipientMobile,
                                      String recipientOpenid,
                                      String content,
                                      Map<String, String> templateData) {
-        this(type, recipientMobile, recipientOpenid, content, templateData, List.of());
+        this(type, recipientMobile, recipientOpenid, content, templateData, List.of(), null);
+    }
+
+    public MemberNotificationMessage(MemberNotificationType type,
+                                     String recipientMobile,
+                                     String recipientOpenid,
+                                     String content,
+                                     Map<String, String> templateData,
+                                     List<String> smsTemplateParams) {
+        this(type, recipientMobile, recipientOpenid, content, templateData, smsTemplateParams, null);
     }
 
     public MemberNotificationMessage {
