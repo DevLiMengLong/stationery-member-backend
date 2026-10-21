@@ -197,7 +197,7 @@ public interface MainFlowMapper {
     List<Map<String, Object>> selectMemberIdsByMobiles(@Param("storeId") Long storeId,
                                                         @Param("mobiles") List<String> mobiles);
 
-    int insertWallets(@Param("memberIds") List<Long> memberIds);
+    int insertWallets(@Param("wallets") List<Map<String, Object>> wallets);
 
     int insertMember(Map<String, Object> member);
 
@@ -216,6 +216,26 @@ public interface MainFlowMapper {
                                                  @Param("type") String type,
                                                  @Param("offset") int offset,
                                                  @Param("limit") int limit);
+
+    long countAdminTransactions(@Param("type") String type,
+                                @Param("mobile") String mobile,
+                                @Param("name") String name,
+                                @Param("storeId") Long storeId,
+                                @Param("startTime") LocalDateTime startTime,
+                                @Param("endTime") LocalDateTime endTime,
+                                @Param("amountMin") BigDecimal amountMin,
+                                @Param("amountMax") BigDecimal amountMax);
+
+    List<Map<String, Object>> selectAdminTransactions(@Param("type") String type,
+                                                       @Param("mobile") String mobile,
+                                                       @Param("name") String name,
+                                                       @Param("storeId") Long storeId,
+                                                       @Param("startTime") LocalDateTime startTime,
+                                                       @Param("endTime") LocalDateTime endTime,
+                                                       @Param("amountMin") BigDecimal amountMin,
+                                                       @Param("amountMax") BigDecimal amountMax,
+                                                       @Param("offset") int offset,
+                                                       @Param("limit") int limit);
 
     List<Map<String, Object>> selectRecentTransactions(@Param("storeId") Long storeId,
                                                        @Param("type") String type,

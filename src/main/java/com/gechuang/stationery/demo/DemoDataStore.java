@@ -946,6 +946,8 @@ public class DemoDataStore {
         map.put("status", member.status);
         map.put("availableBalance", money(wallet.total()));
         map.put("totalBalance", money(wallet.total()));
+        map.put("rechargeBalance", money(wallet.rechargeBalance));
+        map.put("giftBalance", money(wallet.giftBalance));
         map.put("joinedAt", format(member.joinedAt));
         return map;
     }

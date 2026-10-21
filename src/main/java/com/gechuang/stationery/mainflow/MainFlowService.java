@@ -23,6 +23,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -50,6 +51,9 @@ public class MainFlowService {
     private static final int MAX_MEMBER_IMPORT_BYTES = 2 * 1024 * 1024;
     private static final int MAX_MEMBER_IMPORT_ERROR_DETAILS = 100;
     private static final List<String> MEMBER_IMPORT_HEADERS = List.of("手机号", "姓名", "性别", "年龄");
+    private static final List<String> MEMBER_IMPORT_BALANCE_HEADERS = List.of(
+            "手机号", "姓名", "性别", "年龄", "总余额", "充值余额", "赠送余额");
+    private static final BigDecimal MAX_IMPORT_BALANCE = new BigDecimal("9999999999.99");
 
     private final MainFlowMapper mapper;
     private final MemberNotificationService notificationService;
@@ -199,6 +203,8 @@ public class MainFlowService {
         result.put("totalRechargeAmount", money(row.get("totalRechargeAmount")));
         result.put("pendingConsumptionAmount", money(row.get("pendingConsumptionAmount")));
         result.put("totalGiftAmount", money(row.get("totalGiftAmount")));
+        result.put("pendingRechargeAmount", money(row.get("pendingRechargeAmount")));
+        result.put("pendingGiftAmount", money(row.get("pendingGiftAmount")));
         result.put("today", Map.of(
                 "newMembers", row.get("todayNewMembers"),
                 "consumptionAmount", money(row.get("todayConsumptionAmount")),
@@ -374,6 +380,36 @@ public class MainFlowService {
         long total = mapper.countTransactions(memberId, storeId, type);
         return new PageResult<>(mapper.selectTransactions(memberId, storeId, type, page.offset(), page.limit()),
                 total, page.pageNo(), page.pageSize());
+    }
+
+    public PageResult<Map<String, Object>> adminTransactions(String type, String mobile, String name, Long storeId,
+                                                              LocalDate startDate, LocalDate endDate,
+                                                              BigDecimal amountMin, BigDecimal amountMax,
+                                                              int pageNo, int pageSize) {
+        if (!"RECHARGE".equals(type) && !"CONSUMPTION".equals(type)) {
+            throw new BusinessException(ErrorCode.VALIDATION_422, "流水类型仅支持充值或消费");
+        }
+        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+            throw new BusinessException(ErrorCode.VALIDATION_422, "开始日期不能晚于结束日期");
+        }
+        if (invalidTransactionAmount(amountMin) || invalidTransactionAmount(amountMax)
+                || amountMin != null && amountMax != null && amountMin.compareTo(amountMax) > 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_422, "金额范围无效");
+        }
+        Page page = page(pageNo, pageSize);
+        LocalDateTime startTime = startDate == null ? null : startDate.atStartOfDay();
+        LocalDateTime endTime = endDate == null ? null : endDate.atTime(23, 59, 59);
+        String filteredMobile = text(mobile);
+        String filteredName = text(name);
+        long total = mapper.countAdminTransactions(type, filteredMobile, filteredName, storeId,
+                startTime, endTime, amountMin, amountMax);
+        return new PageResult<>(mapper.selectAdminTransactions(type, filteredMobile, filteredName, storeId,
+                startTime, endTime, amountMin, amountMax, page.offset(), page.limit()),
+                total, page.pageNo(), page.pageSize());
+    }
+
+    private boolean invalidTransactionAmount(BigDecimal amount) {
+        return amount != null && (amount.signum() < 0 || amount.scale() > 2);
     }
 
     public List<Map<String, Object>> recentTransactions(Long storeId, String type, int limit) {
@@ -708,8 +744,11 @@ public class MainFlowService {
         } catch (IllegalArgumentException exception) {
             throw new BusinessException(ErrorCode.VALIDATION_422, exception.getMessage());
         }
-        if (records.isEmpty() || !MEMBER_IMPORT_HEADERS.equals(records.get(0).stream().map(String::trim).toList())) {
-            throw new BusinessException(ErrorCode.VALIDATION_422, "模板表头应为：手机号,姓名,性别,年龄");
+        List<String> headers = records.isEmpty() ? List.of() : records.get(0).stream().map(String::trim).toList();
+        boolean hasBalanceColumns = MEMBER_IMPORT_BALANCE_HEADERS.equals(headers);
+        if (!hasBalanceColumns && !MEMBER_IMPORT_HEADERS.equals(headers)) {
+            throw new BusinessException(ErrorCode.VALIDATION_422,
+                    "模板表头应为：手机号,姓名,性别,年龄,总余额,充值余额,赠送余额（兼容旧版四列）");
         }
 
         int totalRows = 0;
@@ -728,8 +767,8 @@ public class MainFlowService {
 
             int rowNumber = recordIndex + 1;
             String mobile = cell(record, 0);
-            if (record.size() != MEMBER_IMPORT_HEADERS.size()) {
-                addImportError(errors, rowNumber, mobile, "列数应为 4 列");
+            if (record.size() != headers.size()) {
+                addImportError(errors, rowNumber, mobile, "列数应为 " + headers.size() + " 列");
                 continue;
             }
             String name = cell(record, 1);
@@ -740,9 +779,26 @@ public class MainFlowService {
                 addImportError(errors, rowNumber, mobile, validationError);
                 continue;
             }
+            BigDecimal rechargeBalance = BigDecimal.ZERO.setScale(2);
+            BigDecimal giftBalance = BigDecimal.ZERO.setScale(2);
+            if (hasBalanceColumns) {
+                try {
+                    BigDecimal totalBalance = importBalance(cell(record, 4), "总余额");
+                    rechargeBalance = importBalance(cell(record, 5), "充值余额");
+                    giftBalance = importBalance(cell(record, 6), "赠送余额");
+                    if (!totalBalance.equals(rechargeBalance.add(giftBalance))) {
+                        addImportError(errors, rowNumber, mobile, "总余额必须等于充值余额与赠送余额之和");
+                        continue;
+                    }
+                } catch (IllegalArgumentException exception) {
+                    addImportError(errors, rowNumber, mobile, exception.getMessage());
+                    continue;
+                }
+            }
             int age = Integer.parseInt(ageText);
             requestedMobiles.add(mobile);
-            validRows.add(new ImportedMemberRow(rowNumber, mobile, name, gender, age));
+            validRows.add(new ImportedMemberRow(rowNumber, mobile, name, gender, age,
+                    rechargeBalance, giftBalance));
         }
         if (totalRows == 0) {
             throw new BusinessException(ErrorCode.VALIDATION_422, "文件中没有可导入的数据");
@@ -780,8 +836,27 @@ public class MainFlowService {
             if (insertedMembers == null || insertedMembers.size() != acceptedRows.size()) {
                 throw new BusinessException(ErrorCode.BIZ_409, "会员导入结果校验失败，请重试");
             }
-            List<Long> memberIds = insertedMembers.stream().map(row -> longValue(row.get("id"))).toList();
-            if (mapper.insertWallets(memberIds) != memberIds.size()) {
+            Map<String, Long> memberIdsByMobile = new HashMap<>();
+            for (Map<String, Object> member : insertedMembers) {
+                String mobile = text(member.get("mobile"));
+                Long memberId = longValue(member.get("id"));
+                if (mobile == null || memberId == null || memberIdsByMobile.put(mobile, memberId) != null) {
+                    throw new BusinessException(ErrorCode.BIZ_409, "会员导入结果校验失败，请重试");
+                }
+            }
+            List<Map<String, Object>> wallets = new ArrayList<>(acceptedRows.size());
+            for (ImportedMemberRow row : acceptedRows) {
+                Long memberId = memberIdsByMobile.get(row.mobile());
+                if (memberId == null) {
+                    throw new BusinessException(ErrorCode.BIZ_409, "会员导入结果校验失败，请重试");
+                }
+                Map<String, Object> wallet = new LinkedHashMap<>();
+                wallet.put("memberId", memberId);
+                wallet.put("rechargeBalance", row.rechargeBalance());
+                wallet.put("giftBalance", row.giftBalance());
+                wallets.add(wallet);
+            }
+            if (mapper.insertWallets(wallets) != wallets.size()) {
                 throw new BusinessException(ErrorCode.BIZ_409, "会员账户初始化失败，请重试");
             }
         }
@@ -829,6 +904,20 @@ public class MainFlowService {
         return index < record.size() ? record.get(index).trim() : "";
     }
 
+    private BigDecimal importBalance(String value, String column) {
+        if (value.isEmpty()) {
+            return BigDecimal.ZERO.setScale(2);
+        }
+        if (!value.matches("\\d+(?:\\.\\d{1,2})?")) {
+            throw new IllegalArgumentException(column + "应为非负金额，最多两位小数");
+        }
+        BigDecimal balance = new BigDecimal(value);
+        if (balance.compareTo(MAX_IMPORT_BALANCE) > 0) {
+            throw new IllegalArgumentException(column + "不能超过 9999999999.99");
+        }
+        return balance.setScale(2);
+    }
+
     private void addImportError(List<MemberImportResult.RowError> errors,
                                 int rowNumber,
                                 String mobile,
@@ -838,7 +927,8 @@ public class MainFlowService {
         }
     }
 
-    private record ImportedMemberRow(int rowNumber, String mobile, String name, String gender, int age) {
+    private record ImportedMemberRow(int rowNumber, String mobile, String name, String gender, int age,
+                                     BigDecimal rechargeBalance, BigDecimal giftBalance) {
     }
 
     public List<Map<String, Object>> activityRows() {

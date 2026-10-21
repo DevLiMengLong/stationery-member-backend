@@ -474,6 +474,8 @@
             (SELECT COUNT(*) FROM store_member m WHERE m.store_id = sa.id AND m.deleted_at IS NULL AND m.status != 'DELETED') AS memberCount,
             <include refid="Money"><property name="expr" value="(SELECT SUM(amount) FROM wallet_transaction WHERE store_id = sa.id AND type = 'RECHARGE' AND status = 'SUCCESS')"/></include> AS totalRechargeAmount,
             <include refid="Money"><property name="expr" value="(SELECT SUM(w.recharge_balance + w.gift_balance) FROM store_member m JOIN member_wallet w ON w.member_id = m.id WHERE m.store_id = sa.id AND m.deleted_at IS NULL AND m.status != 'DELETED')"/></include> AS pendingConsumptionAmount,
+            <include refid="Money"><property name="expr" value="(SELECT SUM(w.recharge_balance) FROM store_member m JOIN member_wallet w ON w.member_id = m.id WHERE m.store_id = sa.id AND m.deleted_at IS NULL AND m.status != 'DELETED')"/></include> AS pendingRechargeAmount,
+            <include refid="Money"><property name="expr" value="(SELECT SUM(w.gift_balance) FROM store_member m JOIN member_wallet w ON w.member_id = m.id WHERE m.store_id = sa.id AND m.deleted_at IS NULL AND m.status != 'DELETED')"/></include> AS pendingGiftAmount,
             <include refid="Money"><property name="expr" value="(SELECT SUM(gift_amount) FROM wallet_transaction WHERE store_id = sa.id AND type = 'RECHARGE' AND status = 'SUCCESS')"/></include> AS totalGiftAmount,
             (SELECT COUNT(*) FROM store_member m WHERE m.store_id = sa.id AND m.created_at &gt;= #{todayStart} AND m.created_at &lt; #{tomorrowStart}) AS todayNewMembers,
             <include refid="Money"><property name="expr" value="(SELECT SUM(amount) FROM wallet_transaction WHERE store_id = sa.id AND type = 'CONSUMPTION' AND status = 'SUCCESS' AND created_at &gt;= #{todayStart} AND created_at &lt; #{tomorrowStart})"/></include> AS todayConsumptionAmount,
@@ -749,10 +751,10 @@
     </select>
 
     <insert id="insertWallets" parameterType="map">
-        INSERT INTO member_wallet (member_id)
+        INSERT INTO member_wallet (member_id, recharge_balance, gift_balance)
         VALUES
-        <foreach collection="memberIds" item="memberId" separator=",">
-            (#{memberId})
+        <foreach collection="wallets" item="wallet" separator=",">
+            (#{wallet.memberId}, #{wallet.rechargeBalance}, #{wallet.giftBalance})
         </foreach>
     </insert>
 
@@ -807,6 +809,35 @@
           <if test="storeId != null">AND tx.store_id = #{storeId}</if>
           <if test="type != null and type != ''">AND tx.type = #{type}</if>
         ORDER BY tx.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <sql id="AdminTransactionWhere">
+        tx.type = #{type}
+        <if test="storeId != null">AND tx.store_id = #{storeId}</if>
+        <if test="mobile != null and mobile != ''">AND m.mobile LIKE CONCAT('%', #{mobile}, '%')</if>
+        <if test="name != null and name != ''">AND m.name LIKE CONCAT('%', #{name}, '%')</if>
+        <if test="startTime != null">AND tx.created_at &gt;= #{startTime}</if>
+        <if test="endTime != null">AND tx.created_at &lt;= #{endTime}</if>
+        <if test="amountMin != null">AND tx.amount &gt;= #{amountMin}</if>
+        <if test="amountMax != null">AND tx.amount &lt;= #{amountMax}</if>
+    </sql>
+
+    <select id="countAdminTransactions" resultType="long">
+        SELECT COUNT(*)
+        FROM wallet_transaction tx
+        JOIN store_account s ON s.id = tx.store_id
+        LEFT JOIN store_member m ON m.id = tx.member_id
+        WHERE <include refid="AdminTransactionWhere"/>
+    </select>
+
+    <select id="selectAdminTransactions" resultType="map">
+        SELECT <include refid="TransactionSelect"/>
+        FROM wallet_transaction tx
+        JOIN store_account s ON s.id = tx.store_id
+        LEFT JOIN store_member m ON m.id = tx.member_id
+        WHERE <include refid="AdminTransactionWhere"/>
+        ORDER BY tx.created_at DESC, tx.id DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
