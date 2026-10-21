@@ -9,6 +9,7 @@ import com.gechuang.stationery.mainflow.MainFlowService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -16,6 +17,7 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -33,7 +35,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api/admin")
 public class AdminController {
 
-    private static final byte[] MEMBER_IMPORT_TEMPLATE = ("\uFEFF手机号,姓名,性别,年龄\r\n")
+    private static final byte[] MEMBER_IMPORT_TEMPLATE = ("\uFEFF手机号,姓名,性别,年龄,总余额,充值余额,赠送余额\r\n")
             .getBytes(StandardCharsets.UTF_8);
 
     private final MainFlowService mainFlowService;
@@ -199,6 +201,23 @@ public class AdminController {
         return RestResponse.success(mainFlowService.memberTransactions(null, id, type, pageNo, pageSize));
     }
 
+    @GetMapping("/transactions")
+    public RestResponse<PageResult<Map<String, Object>>> transactions(@RequestParam String type,
+                                                                       @RequestParam(required = false) String mobile,
+                                                                       @RequestParam(required = false) String name,
+                                                                       @RequestParam(required = false) Long storeId,
+                                                                       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+                                                                       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+                                                                       @RequestParam(required = false) BigDecimal amountMin,
+                                                                       @RequestParam(required = false) BigDecimal amountMax,
+                                                                       @RequestParam(defaultValue = "1") int pageNo,
+                                                                       @RequestParam(defaultValue = "20") int pageSize,
+                                                                       HttpServletRequest request) {
+        mainFlowService.requireAdmin(request);
+        return RestResponse.success(mainFlowService.adminTransactions(type, mobile, name, storeId, startDate,
+                endDate, amountMin, amountMax, pageNo, pageSize));
+    }
+
     @PostMapping("/transactions/{id}/reverse")
     public RestResponse<Map<String, Object>> reverse(@PathVariable Long id,
                                                      @RequestBody(required = false) Map<String, Object> body,
@@ -241,12 +260,14 @@ public class AdminController {
     }
 
     private String csv(List<Map<String, Object>> rows) {
-        StringBuilder builder = new StringBuilder("\uFEFF手机号,姓名,所属门店,待消费金额,累计充值,累计消费,加入时间\n");
+        StringBuilder builder = new StringBuilder("\uFEFF手机号,姓名,所属门店,待消费金额,充值金额,赠送金额,累计充值,累计消费,加入时间\n");
         for (Map<String, Object> row : rows) {
             builder.append(csvCell(row.get("mobile"))).append(',')
                     .append(csvCell(row.get("name"))).append(',')
                     .append(csvCell(row.get("storeName"))).append(',')
                     .append(csvCell(row.get("totalBalance"))).append(',')
+                    .append(csvCell(row.get("rechargeBalance"))).append(',')
+                    .append(csvCell(row.get("giftBalance"))).append(',')
                     .append(csvCell(row.get("accumulatedRecharge"))).append(',')
                     .append(csvCell(row.get("accumulatedConsumption"))).append(',')
                     .append(csvCell(row.get("joinedAt"))).append('\n');

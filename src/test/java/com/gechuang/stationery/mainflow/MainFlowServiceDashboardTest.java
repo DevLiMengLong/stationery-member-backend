@@ -26,6 +26,11 @@ class MainFlowServiceDashboardTest {
         row.put("contactMobile", "13800138000");
         row.put("expiresAt", "2027-01-02 12:00:00");
         row.put("smsQuota", 12);
+        row.put("totalRechargeAmount", new BigDecimal("300.00"));
+        row.put("totalGiftAmount", new BigDecimal("50.00"));
+        row.put("pendingConsumptionAmount", new BigDecimal("130.00"));
+        row.put("pendingRechargeAmount", new BigDecimal("105.25"));
+        row.put("pendingGiftAmount", new BigDecimal("24.75"));
         row.put("todayNewMembers", 0);
         row.put("todayConsumptionAmount", BigDecimal.ZERO);
         row.put("todayRechargeAmount", BigDecimal.ZERO);
@@ -43,6 +48,11 @@ class MainFlowServiceDashboardTest {
         assertThat(dashboard)
                 .containsEntry("smsQuota", 12)
                 .containsEntry("expiresAt", "2027-01-02 12:00:00")
+                .containsEntry("totalRechargeAmount", "300.00")
+                .containsEntry("totalGiftAmount", "50.00")
+                .containsEntry("pendingConsumptionAmount", "130.00")
+                .containsEntry("pendingRechargeAmount", "105.25")
+                .containsEntry("pendingGiftAmount", "24.75")
                 .containsEntry("month", Map.of(
                         "newMembers", 8,
                         "consumptionAmount", "42.00",
